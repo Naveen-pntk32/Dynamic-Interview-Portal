@@ -1,16 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { apiPost } from '@/lib/api';
 
 interface User {
   id: string;
-  username: string;
+  name: string;
   email: string;
-  preferredLanguages: string[];
+  role: 'student' | 'admin';
 }
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
-  signup: (username: string, email: string, password: string) => Promise<boolean>;
+  signup: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -40,22 +41,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
-    
-    // Mock API call - replace with actual API
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock successful login
-      const mockUser: User = {
-        id: '1',
-        username: 'johndoe',
-        email: email,
-        preferredLanguages: ['JavaScript', 'Python']
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      const res = await apiPost<{ success: boolean; data: { token: string; user: User } }>(
+        '/auth/login',
+        { email, password }
+      );
+      if (!res.success) throw new Error('Login failed');
+      const { token, user } = res.data;
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      setUser(user);
       setIsLoading(false);
       return true;
     } catch (error) {
@@ -64,24 +59,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signup = async (username: string, email: string, password: string): Promise<boolean> => {
+  const signup = async (name: string, email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
-    
-    // Mock API call - replace with actual API
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock successful signup
-      const mockUser: User = {
-        id: '1',
-        username: username,
-        email: email,
-        preferredLanguages: []
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      const res = await apiPost<{ success: boolean; data: { token: string; user: User } }>(
+        '/auth/register',
+        { name, email, password }
+      );
+      if (!res.success) throw new Error('Signup failed');
+      const { token, user } = res.data;
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      setUser(user);
       setIsLoading(false);
       return true;
     } catch (error) {
