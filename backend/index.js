@@ -1,5 +1,10 @@
+const dotenv = require('dotenv');
+const connect = require('./config/db');
 const express = require('express');
 const app = express();
+
+dotenv.config();
+connect();
 
 app.get('/', (req, res) => {
     res.send("Hello World!");
