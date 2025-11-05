@@ -5,6 +5,7 @@ const express = require('express');
 const app = express();
 
 const userRoutes = require('./routes/userRoutes.js');
+const categoryRoutes = require('./routes/courseRoutes.js');
 
 app.use(cors());
 app.use(cors())
@@ -18,6 +19,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/users', userRoutes);
+app.use('/api/courses', categoryRoutes);
 
 const PORT = process.env.PORT || 5000;
 
