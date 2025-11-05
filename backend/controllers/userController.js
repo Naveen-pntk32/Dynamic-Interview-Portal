@@ -13,19 +13,21 @@ function generateToken(userId) {
 exports.registerUser = async (req, res) => {
     console.log(req.body);
     try {
-        const {name, email, password} = req.body;
-        if(!name || !email || !password){
+        const {username, email, password} = req.body;
+        if(!username || !email || !password){
+            console.log("Missing fields");
             return res.status(400).json({message: "All fields are required"});
         }
         
         const existingUser = await User.findOne({email});
         if(existingUser){
+            console.log("User already exists");
             return res.status(409).json({message: "User already exists"});
         }  
         
         const hashedPassword = bcrypt.hashSync(password, 10);
         const newUser = new User({
-            name,
+            username,
             email,
             password: hashedPassword,
         });
@@ -33,7 +35,7 @@ exports.registerUser = async (req, res) => {
 
         const token = generateToken(newUser._id);
         res.status(201).json({
-            name: newUser.name,
+            username: newUser.username,
             email: newUser.email,
             role: newUser.role,
             token,

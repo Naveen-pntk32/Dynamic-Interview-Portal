@@ -177,7 +177,7 @@ const Courses: React.FC = () => {
     }
   };
 
-  const CourseCard = ({ course }: { course: any }) => (
+  const CourseCard = ({ course }: { course }) => (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <div className="flex justify-between items-start">
