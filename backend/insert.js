@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const Category = require('./models/categoryModel');
+const Course = require('./models/courseModel');
 const dbConnect = require('./config/db.js');
 const dotenvResult = dotenv.config();
 
@@ -44,7 +45,6 @@ const categories = [
 const courses = {
     dsa: [
         {
-        id: 1,
         title: 'Arrays and Strings Mastery',
         description: 'Complete guide to array and string manipulation problems',
         duration: '3 weeks',
@@ -55,7 +55,6 @@ const courses = {
         progress: 0
         },
         {
-        id: 2,
         title: 'Advanced Tree Algorithms',
         description: 'Binary trees, BST, AVL trees, and advanced tree problems',
         duration: '4 weeks',
@@ -66,7 +65,6 @@ const courses = {
         progress: 25
         },
         {
-        id: 3,
         title: 'Dynamic Programming Deep Dive',
         description: 'Master DP patterns and solve complex optimization problems',
         duration: '5 weeks',
@@ -79,7 +77,6 @@ const courses = {
     ],
     aptitude: [
         {
-        id: 4,
         title: 'Quantitative Aptitude Fundamentals',
         description: 'Basic math concepts for competitive exams and interviews',
         duration: '2 weeks',
@@ -90,7 +87,6 @@ const courses = {
         progress: 60
         },
         {
-        id: 5,
         title: 'Logical Reasoning Mastery',
         description: 'Develop logical thinking and problem-solving skills',
         duration: '3 weeks',
@@ -103,7 +99,6 @@ const courses = {
     ],
     communication: [
         {
-        id: 6,
         title: 'Effective Interview Communication',
         description: 'Master the art of clear and confident communication',
         duration: '2 weeks',
@@ -114,7 +109,6 @@ const courses = {
         progress: 80
         },
         {
-        id: 7,
         title: 'Technical Communication Skills',
         description: 'Explain complex technical concepts clearly and concisely',
         duration: '3 weeks',
@@ -127,7 +121,6 @@ const courses = {
     ],
     hr: [
         {
-        id: 8,
         title: 'Common HR Interview Questions',
         description: 'Prepare for the most frequently asked HR questions',
         duration: '1 week',
@@ -138,7 +131,6 @@ const courses = {
         progress: 100
         },
         {
-        id: 9,
         title: 'Behavioral Interview Mastery',
         description: 'STAR method and behavioral question strategies',
         duration: '2 weeks',
@@ -151,4 +143,17 @@ const courses = {
     ]
 };
 
-courses
+courses.hr.forEach(async (course) => {
+    try {
+        const category = await Category.findOne({id: 'hr'});
+        const courseDoc = new Course({
+            categoryId: category._id,
+            ...course
+        });
+        await courseDoc.save();
+        console.log(`Inserted course: ${course.title}`);
+    }
+    catch (error) {
+        console.error(`Error inserting course ${course.title}:`, error);
+    }
+});

@@ -1,53 +1,65 @@
-const Category = require('../models/categoryModel.js');
+const Course = require('../models/courseModel');
 
-exports.getAllCategories = async (req, res) => {
+exports.getAllCourses = async (req, res) => {
     try {
-        const categories = await Category.find();
-        res.json(categories);
+        const courses = await Course.find();
+        res.json(courses);
     }
     catch (error) {
-        console.error("Get all categories error:", error);
+        console.error("Get all courses error:", error);
         res.status(500).json({message: "Server error"});
     }
 }
 
-exports.addCategory = async (req, res) => {
+exports.getCourseById = async (req, res) => {
     try {
-        const {id, name, icon, color, description} = req.body;
-        if(!id || !name || !icon || !color || !description){
+        const {courseId} = req.params;
+        const course = await Course.findById(courseId);
+        if(!course){
+            return res.status(404).json({message: "Course not found"});
+        }
+        res.json(course);
+    }
+    catch (error) {
+        console.error("Get course by ID error:", error);
+        res.status(500).json({message: "Server error"});
+    }   
+}
+
+exports.addCourse = async (req, res) => {
+    try {
+        const {title, categoryId, description, duration, level, topics} = req.body; 
+        if(!title || !categoryId || !description || !duration || !level || !topics){
             return res.status(400).json({message: "All fields are required"});
         }
-        const existingCategory = await Category.findOne({id});
-        if(existingCategory){
-            return res.status(409).json({message: "Category with this ID already exists"});
-        }
-        const newCategory = new Category({
-            id,
-            name,
-            icon,
-            color,
-            description
+        const newCourse = new Course({
+            title,
+            categoryId,
+            description,
+            duration,
+            level,
+            topics
         });
-        await newCategory.save();
-        res.status(201).json(newCategory);
+        await newCourse.save();
+        res.status(201).json(newCourse);
     }
     catch (error) {
-        console.error("Add category error:", error);
+        console.error("Add course error:", error);
         res.status(500).json({message: "Server error"});
     }
 }
 
-exports.deleteCategory = async (req, res) => {
+exports.deleteCourse = async (req, res) => {
     try {
-        const {categoryId} = req.params;
-        const deletedCategory = await Category.findByIdAndDelete(categoryId);
-        if(!deletedCategory){
-            return res.status(404).json({message: "Category not found"});
+        const {courseId} = req.params; 
+        const deletedCourse = await Course.findByIdAndDelete(courseId);
+        if(!deletedCourse){
+            return res.status(404).json({message: "Course not found"});
         }
-        res.json({message: "Category deleted successfully"});
+        res.json({message: "Course deleted successfully"});
     }
     catch (error) {
-        console.error("Delete category error:", error);
+        console.error("Delete course error:", error);
         res.status(500).json({message: "Server error"});
     }
 }

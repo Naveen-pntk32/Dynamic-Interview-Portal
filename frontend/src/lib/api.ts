@@ -61,7 +61,7 @@ export const authApi = {
     }),
 
   signup: (username: string, email: string, password: string) =>
-    request('/api/users/register', {
+    request('/api/users/signup', {
       method: 'POST',
       body: JSON.stringify({ username, email, password }),
     }),
