@@ -76,10 +76,11 @@ export interface Category {
   description: string;
   icon: string;
   color: string;
+  coursesId: string[];  // Array of course IDs associated with this category
 }
 
 export interface Course {
-  id: string;
+  _id: string;
   title: string;
   description: string;
   duration: string;

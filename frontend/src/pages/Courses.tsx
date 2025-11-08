@@ -26,23 +26,34 @@ const Courses: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
-  // map categoryId -> courses
+  
   const [coursesByCategory, setCoursesByCategory] = useState<Record<string, Course[]>>({});
   const [userProgress, setUserProgress] = useState<Record<string, number>>({});
   const [activeCategory, setActiveCategory] = useState('all');
 
-  // Fetch categories and courses
+  
   useEffect(() => {
     const fetchData = async () => {
       try {
         const categoriesData: Category[] = await coursesApi.getCategories();
         setCategories(categoriesData);
-
-        // fetch courses per category in parallel
-        const coursesPromises = categoriesData.map(cat => coursesApi.getCoursesByCategory(cat.id).then((list: Course[]) => ({ id: cat.id, list })).catch(() => ({ id: cat.id, list: [] })));
-        const coursesResults = await Promise.all(coursesPromises);
+        
         const mapping: Record<string, Course[]> = {};
-        coursesResults.forEach(r => { mapping[r.id] = r.list; });
+        const allCourses: Course[] = await coursesApi.getAllCourses();
+        
+        categoriesData.forEach(category => {
+          for (const course of allCourses) {
+            // console.log(category.coursesId, course._id);
+            if (category.coursesId?.includes(String(course._id))) {
+              if (!mapping[category.id]) {
+                mapping[category.id] = [];
+              }
+              mapping[category.id].push(course);
+            }
+          }
+        });
+        
+        console.log(mapping);
         setCoursesByCategory(mapping);
 
         // If user is logged in, fetch their progress
@@ -277,7 +288,7 @@ const Courses: React.FC = () => {
           <TabsContent value="all" className="space-y-6">
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {(searchTerm ? filteredCourses : allCourses).map((course) => {
-                const idKey = String(course.id);
+                const idKey = String(course._id);
                 const displayCourse: Course = { ...course, progress: userProgress[idKey] ?? (course.progress ?? 0) } as Course;
                 return <CourseCard key={idKey} course={displayCourse} onStart={() => handleStartCourse(idKey)} />;
               })}
@@ -288,7 +299,7 @@ const Courses: React.FC = () => {
             <TabsContent key={cat.id} value={cat.id} className="space-y-6">
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {getCoursesByCategory(cat.id).map((course) => {
-                  const idKey = String(course.id);
+                  const idKey = String(course._id);
                   const displayCourse: Course = { ...course, progress: userProgress[idKey] ?? (course.progress ?? 0) } as Course;
                   return <CourseCard key={idKey} course={displayCourse} onStart={() => handleStartCourse(idKey)} />;
                 })}
