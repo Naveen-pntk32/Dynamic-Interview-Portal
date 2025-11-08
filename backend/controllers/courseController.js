@@ -1,4 +1,5 @@
 const Course = require('../models/courseModel');
+const { addCategoryCourses, deleteCategoryCourses } = require('./categoryController');
 
 exports.getAllCourses = async (req, res) => {
     try {
@@ -41,6 +42,8 @@ exports.addCourse = async (req, res) => {
             topics
         });
         await newCourse.save();
+
+        await addCategoryCourses(categoryId, newCourse._id);
         res.status(201).json(newCourse);
     }
     catch (error) {
@@ -56,6 +59,8 @@ exports.deleteCourse = async (req, res) => {
         if(!deletedCourse){
             return res.status(404).json({message: "Course not found"});
         }
+
+        await deleteCategoryCourses(deletedCourse.categoryId, deletedCourse._id);
         res.json({message: "Course deleted successfully"});
     }
     catch (error) {

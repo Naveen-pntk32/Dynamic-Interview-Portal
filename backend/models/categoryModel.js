@@ -5,7 +5,8 @@ const categorySchema = new mongoose.Schema({
     name: { type: String, required: true },
     icon: { type: String, required: true },
     color: { type: String, required: true },
-    description: { type: String, required: true }
+    description: { type: String, required: true },
+    coursesId: { type: [mongoose.Schema.Types.ObjectId], ref: 'Course', default: [] }
 });
 
 const Category = mongoose.model('Category', categorySchema);

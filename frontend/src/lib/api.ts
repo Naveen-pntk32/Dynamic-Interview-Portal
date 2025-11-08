@@ -70,4 +70,54 @@ export const authApi = {
   getProfile: () => request('/api/users/profile'),
 };
 
+export interface Category {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+}
+
+export interface Course {
+  id: string;
+  title: string;
+  description: string;
+  duration: string;
+  level: 'Beginner' | 'Intermediate' | 'Advanced';
+  students: number;
+  rating: number;
+  topics: string[];
+  progress: number;
+  categoryId: string;
+}
+
+export const coursesApi = {
+  // Get all course categories
+  getCategories: () => 
+    request('/api/courses/categories'),
+
+  // Get all courses
+  getAllCourses: () => 
+    request('/api/courses'),
+
+  // Get courses by category
+  getCoursesByCategory: (categoryId: string) => 
+    request(`/api/courses/category/${categoryId}`),
+
+  // Get user's course progress
+  getUserProgress: () => 
+    request('/api/courses/progress'),
+
+  // Start or continue a course
+  startCourse: (courseId: string) => 
+    request(`/api/courses/${courseId}/start`, { method: 'POST' }),
+
+  // Update course progress
+  updateProgress: (courseId: string, progress: number) => 
+    request(`/api/courses/${courseId}/progress`, {
+      method: 'PUT',
+      body: JSON.stringify({ progress })
+    }),
+};
+
 export default request;

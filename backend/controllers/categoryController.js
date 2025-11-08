@@ -66,3 +66,33 @@ exports.deleteCategory = async (req, res) => {
         res.status(500).json({message: "Server error"});
     }
 }
+
+exports.addCategoryCourses = async (categoryId, coursesId) => {
+    try {
+        const category = await Category.findById(categoryId);
+        if(!category){
+            return res.status(404).json({message: "Category not found"});
+        }  
+        category.coursesId.push(coursesId || category.coursesId);
+
+        await category.save();
+    }
+    catch (error) {
+        console.error("Update category courses error:", error);
+    }
+}
+
+exports.deleteCategoryCourses = async (categoryId, coursesId) => {
+    try {
+        const category = await Category.findById(categoryId);  
+        if(!category){
+            return res.status(404).json({message: "Category not found"});
+        }
+        category.coursesId = category.coursesId.filter(id => String(id) !== String(coursesId));
+
+        await category.save();
+    }  
+    catch (error) {
+        console.error("Delete category courses error:", error);
+    }
+}
