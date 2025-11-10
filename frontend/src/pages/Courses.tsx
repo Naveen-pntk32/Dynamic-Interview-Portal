@@ -53,7 +53,6 @@ const Courses: React.FC = () => {
           }
         });
         
-        console.log(mapping);
         setCoursesByCategory(mapping);
 
         // If user is logged in, fetch their progress

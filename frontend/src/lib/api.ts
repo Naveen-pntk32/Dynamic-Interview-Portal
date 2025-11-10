@@ -92,6 +92,52 @@ export interface Course {
   categoryId: string;
 }
 
+/**
+ * Per-user progress record for a single course.
+ * - userId and courseId are stringified ObjectId values coming from the backend.
+ * - progress is a percentage 0-100.
+ * - attempts count number of times user started/restarted the course.
+ * - score is optional (for quiz/assessment scores).
+ * - timeSpentSeconds tracks time spent in seconds.
+ * - timestamps are ISO strings when coming from the API.
+ */
+export interface CourseProgress {
+  id?: string; // optional progress document id
+  userId: string;
+  courseId: string;
+  progress: number; // 0-100
+  attempts?: number;
+  score?: number | null;
+  timeSpentSeconds?: number;
+  startedAt?: string | null;
+  lastAccessedAt?: string | null;
+  completedAt?: string | null;
+  metadata?: Record<string, any>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Aggregated performance metrics for a course across users.
+ * Useful for dashboards (average progress, completion rate, average score, totals).
+ */
+export interface CoursePerformance {
+  courseId: string;
+  totalParticipants: number; // number of users who have any record for this course
+  averageProgress: number; // 0-100
+  completionRate: number; // 0-1 fraction of users with progress === 100
+  averageScore?: number | null; // if score is applicable
+  medianProgress?: number;
+  // optional: distribution buckets of progress (e.g. 0-25,25-50...)
+  progressDistribution?: Array<{ range: string; count: number }>;
+}
+
+/**
+ * Quick mapping type for user's progress keyed by courseId.
+ * Example: { "650a...": 45 }
+ */
+export type UserProgressMap = Record<string, number>;
+
 export const coursesApi = {
   // Get all course categories
   getCategories: () => 
