@@ -60,14 +60,17 @@ export const authApi = {
       body: JSON.stringify({ email, password }),
     }),
 
-  signup: (username: string, email: string, password: string) =>
+  signup: (username: string, email: string, password: string, bio?: string, webpage?: string, resume?: string, phone?: string, skills?: string[]) =>
     request('/api/users/signup', {
       method: 'POST',
-      body: JSON.stringify({ username, email, password }),
+      body: JSON.stringify({ username, email, password, bio, webpage, resume, phone, skills }),
     }),
 
-  // placeholder for future endpoints
-  getProfile: () => request('/api/users/profile'),
+  getProfile: (userId: string) => request(`/api/users/profile/${userId}`),
+  updateProfile: (userId: string, data: any) => request(`/api/users/profile/${userId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
 };
 
 export interface Category {
@@ -140,27 +143,27 @@ export type UserProgressMap = Record<string, number>;
 
 export const coursesApi = {
   // Get all course categories
-  getCategories: () => 
+  getCategories: () =>
     request('/api/courses/categories'),
 
   // Get all courses
-  getAllCourses: () => 
+  getAllCourses: () =>
     request('/api/courses'),
 
   // Get courses by category
-  getCoursesByCategory: (categoryId: string) => 
+  getCoursesByCategory: (categoryId: string) =>
     request(`/api/courses/category/${categoryId}`),
 
   // Get user's course progress
-  getUserProgress: () => 
+  getUserProgress: () =>
     request('/api/courses/progress'),
 
   // Start or continue a course
-  startCourse: (courseId: string) => 
+  startCourse: (courseId: string) =>
     request(`/api/courses/${courseId}/start`, { method: 'POST' }),
 
   // Update course progress
-  updateProgress: (courseId: string, progress: number) => 
+  updateProgress: (courseId: string, progress: number) =>
     request(`/api/courses/${courseId}/progress`, {
       method: 'PUT',
       body: JSON.stringify({ progress })

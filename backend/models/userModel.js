@@ -2,11 +2,15 @@ const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema(
   {
-    _id: { type: mongoose.Schema.Types.ObjectId },
     username: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     profileImageUrl: { type: String, default: null },
+    bio: { type: String, default: '' },
+    webpage: { type: String, default: '' },
+    resume: { type: String, default: '' },
+    phone: { type: String, default: '' },
+    skills: { type: [String], default: [] },
     role: {
       type: String,
       enum: ['student', 'admin'],

@@ -4,13 +4,18 @@ interface User {
   id: string;
   username: string;
   email: string;
-  preferredLanguages: string[];
+  bio?: string;
+  webpage?: string;
+  resume?: string;
+  phone?: string;
+  skills?: string[];
 }
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
-  signup: (username: string, email: string, password: string) => Promise<boolean>;
+  signup: (username: string, email: string, password: string, bio?: string, webpage?: string, resume?: string, phone?: string, skills?: string[]) => Promise<boolean>;
+  updateUser: (data: Partial<User>) => void;
   logout: () => void;
   isLoading: boolean;
 }
@@ -59,7 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const api = await import('../lib/api');
       const data = await api.authApi.login(email, password);
-      // expected response: {_id, name, email, role, token}
+      // expected response: {_id, name, email, role, token, bio, webpage, resume, phone, skills}
       const token = data?.token;
       if (!token) {
         setIsLoading(false);
@@ -70,7 +75,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: data._id,
         username: data.name || data.username || '',
         email: data.email,
-        preferredLanguages: data.preferredLanguages || [],
+        bio: data.bio,
+        webpage: data.webpage,
+        resume: data.resume,
+        phone: data.phone,
+        skills: data.skills || [],
       };
       setUser(loggedUser);
       localStorage.setItem('user', JSON.stringify(loggedUser));
@@ -82,11 +91,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signup = async (username: string, email: string, password: string): Promise<boolean> => {
+  const signup = async (username: string, email: string, password: string, bio?: string, webpage?: string, resume?: string, phone?: string, skills?: string[]): Promise<boolean> => {
     setIsLoading(true);
     try {
       const api = await import('../lib/api');
-      const data = await api.authApi.signup(username, email, password);
+      const data = await api.authApi.signup(username, email, password, bio, webpage, resume, phone, skills);
       const token = data?.token;
       if (token) {
         api.setToken(token);
@@ -95,7 +104,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: data._id || data.id || '0',
         username: data.name || username,
         email: data.email || email,
-        preferredLanguages: data.preferredLanguages || [],
+        bio: data.bio || bio,
+        webpage: data.webpage || webpage,
+        resume: data.resume || resume,
+        phone: data.phone || phone,
+        skills: data.skills || skills || [],
       };
       setUser(newUser);
       localStorage.setItem('user', JSON.stringify(newUser));
@@ -104,6 +117,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       setIsLoading(false);
       return false;
+    }
+  };
+
+  const updateUser = (userData: Partial<User>) => {
+    if (user) {
+      const updatedUser = { ...user, ...userData };
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
     }
   };
 
@@ -118,6 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     login,
     signup,
+    updateUser,
     logout,
     isLoading
   };

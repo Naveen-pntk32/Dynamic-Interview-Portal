@@ -12,7 +12,7 @@ function generateToken(userId) {
 
 exports.registerUser = async (req, res) => {
     try {
-        const { username, email, password } = req.body;
+        const { username, email, password, bio, webpage, resume, phone, skills } = req.body;
         if (!username || !email || !password) {
             console.log("Missing fields");
             return res.status(400).json({ message: "All fields are required" });
@@ -29,14 +29,25 @@ exports.registerUser = async (req, res) => {
             username,
             email,
             password: hashedPassword,
+            bio: bio || '',
+            webpage: webpage || '',
+            resume: resume || '',
+            phone: phone || '',
+            skills: skills || [],
         });
         await newUser.save();
 
         const token = generateToken(newUser._id);
         res.status(201).json({
+            _id: newUser._id,
             username: newUser.username,
             email: newUser.email,
             role: newUser.role,
+            bio: newUser.bio,
+            webpage: newUser.webpage,
+            resume: newUser.resume,
+            phone: newUser.phone,
+            skills: newUser.skills,
             token,
         });
     }
@@ -67,9 +78,14 @@ exports.loginUser = async (req, res) => {
         const token = generateToken(user._id);
         res.json({
             _id: user._id,
-            name: user.name,
+            name: user.username,
             email: user.email,
             role: user.role,
+            bio: user.bio,
+            webpage: user.webpage,
+            resume: user.resume,
+            phone: user.phone,
+            skills: user.skills,
             token,
         });
     }
@@ -109,13 +125,18 @@ exports.getAllProfiles = async (req, res) => {
 exports.updateProfile = async (req, res) => {
     try {
         const userId = req.params.userId;
-        const { name, profileImageUrl } = req.body;
+        const { name, profileImageUrl, bio, webpage, resume, phone, skills } = req.body;
         const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
         user.name = name || user.name;
         user.profileImageUrl = profileImageUrl || user.profileImageUrl;
+        user.bio = bio !== undefined ? bio : user.bio;
+        user.webpage = webpage !== undefined ? webpage : user.webpage;
+        user.resume = resume !== undefined ? resume : user.resume;
+        user.phone = phone !== undefined ? phone : user.phone;
+        user.skills = skills !== undefined ? skills : user.skills;
 
         await user.save();
         res.json({ message: "Profile updated successfully" });

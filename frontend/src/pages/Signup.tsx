@@ -17,7 +17,14 @@ const Signup: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
+
+  // Optional fields state
+  const [bio, setBio] = useState('');
+  const [webpage, setWebpage] = useState('');
+  const [resume, setResume] = useState('');
+  const [phone, setPhone] = useState('');
+  const [skillsInput, setSkillsInput] = useState('');
+
   const { signup } = useAuth();
   const navigate = useNavigate();
 
@@ -39,7 +46,8 @@ const Signup: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const success = await signup(username, email, password);
+      const skills = skillsInput.split(',').map(s => s.trim()).filter(s => s.length > 0);
+      const success = await signup(username, email, password, bio, webpage, resume, phone, skills);
       if (success) {
         navigate('/dashboard');
       } else {
@@ -146,6 +154,59 @@ const Signup: React.FC = () => {
                     {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+              </div>
+
+              {/* Optional Fields */}
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number (Optional)</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="+1 (555) 000-0000"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bio">Bio (Optional)</Label>
+                <Input
+                  id="bio"
+                  placeholder="Tell us about yourself"
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="webpage">Webpage URL (Optional)</Label>
+                <Input
+                  id="webpage"
+                  type="url"
+                  placeholder="https://yourwebsite.com"
+                  value={webpage}
+                  onChange={(e) => setWebpage(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="resume">Resume URL (Optional)</Label>
+                <Input
+                  id="resume"
+                  placeholder="Link to your resume"
+                  value={resume}
+                  onChange={(e) => setResume(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="skills">Skills (Optional, comma separated)</Label>
+                <Input
+                  id="skills"
+                  placeholder="React, Node.js, Python"
+                  value={skillsInput}
+                  onChange={(e) => setSkillsInput(e.target.value)}
+                />
               </div>
 
               <Button

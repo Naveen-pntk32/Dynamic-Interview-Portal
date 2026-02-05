@@ -6,11 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { 
-  User, 
-  Mail, 
-  Upload, 
-  Save, 
+import {
+  User,
+  Mail,
+  Upload,
+  Save,
   Edit,
   FileText,
   Settings,
@@ -20,31 +20,57 @@ import {
 } from 'lucide-react';
 
 const Profile: React.FC = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth(); // Assume I added updateUser
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     username: user?.username || '',
     email: user?.email || '',
-    bio: 'Passionate software developer with 3+ years of experience in full-stack development.',
-    location: 'San Francisco, CA',
-    website: 'https://johndoe.dev',
-    phone: '+1 (555) 123-4567',
-    preferredLanguages: user?.preferredLanguages || ['JavaScript', 'Python'],
-    skills: ['React', 'Node.js', 'TypeScript', 'Python', 'AWS', 'Docker']
+    bio: user?.bio || '',
+    location: (user as any)?.location || '', // Not in backend yet, keep as placeholder or remove
+    website: user?.webpage || '',
+    phone: user?.phone || '',
+    preferredLanguages: (user as any)?.preferredLanguages || [], // Legacy/Frontend only or need to add
+    skills: user?.skills || []
   });
+
+  // Re-sync form data when user changes (e.g. initial load)
+  // But we want to preserve edits? No, if user context changes we might want to respect it
+  // For now, just rely on initial state or explicit reset.
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSave = async () => {
-    // Mock API call - replace with actual API
+    if (!user?.id) return;
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const api = await import('../lib/api');
+      await api.authApi.updateProfile(user.id, {
+        name: formData.username,
+        // email: formData.email, // Usually email update requires checks
+        bio: formData.bio,
+        webpage: formData.website,
+        phone: formData.phone,
+        skills: formData.skills,
+        // resume: ... todo: handle file upload separately or just url string
+      });
+
+      // Update local context
+      if (updateUser) {
+        updateUser({
+          ...user,
+          username: formData.username,
+          bio: formData.bio,
+          webpage: formData.website,
+          phone: formData.phone,
+          skills: formData.skills
+        });
+      }
+
       setIsEditing(false);
-      // Show success message
       alert('Profile updated successfully!');
     } catch (error) {
+      console.error(error);
       alert('Failed to update profile. Please try again.');
     }
   };
@@ -275,7 +301,7 @@ const Profile: React.FC = () => {
                     Supported formats: PDF, DOC, DOCX (Max 5MB)
                   </p>
                 </div>
-                
+
                 <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                   <p className="text-sm text-blue-800">
                     <strong>Current Resume:</strong> john_doe_resume.pdf (uploaded 2 days ago)
