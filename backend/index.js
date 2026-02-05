@@ -8,9 +8,8 @@ const userRoutes = require('./routes/userRoutes.js');
 const categoryRoutes = require('./routes/courseRoutes.js');
 
 app.use(cors());
-app.use(cors())
-
 app.use(express.json());
+
 dotenv.config();
 connect();
 

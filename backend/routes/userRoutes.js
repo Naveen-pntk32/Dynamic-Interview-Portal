@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const {loginUser, registerUser, getAllProfiles, getProfile, updateProfile, deleteProfile} = require('../controllers/userController');
+const { loginUser, registerUser, getAllProfiles, getProfile, updateProfile, deleteProfile } = require('../controllers/userController');
 
 router.get('/', (req, res) => {
     res.send("User router");
 });
 
 router.post('/login', loginUser);
-router.post('/register', registerUser);
+router.post('/signup', registerUser);
 
 router.get('/profiles', getAllProfiles);
 router.get('/profile/:userId', getProfile);
