@@ -5,11 +5,11 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { 
-  Search, 
-  Filter, 
-  Calendar, 
-  TrendingUp, 
+import {
+  Search,
+  Filter,
+  Calendar,
+  TrendingUp,
   Eye,
   Download,
   BarChart3,
@@ -18,133 +18,90 @@ import {
   XCircle,
   Target
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const History: React.FC = () => {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [historyData, setHistoryData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const interviewHistory = [
-    {
-      id: 1,
-      title: 'JavaScript Fundamentals',
-      type: 'MCQ',
-      category: 'Technical',
-      date: '2024-01-15',
-      duration: '25 mins',
-      score: 85,
-      totalQuestions: 20,
-      correctAnswers: 17,
-      status: 'completed',
-      feedback: 'Good understanding of JS concepts. Focus on async/await patterns.'
-    },
-    {
-      id: 2,
-      title: 'System Design Basics',
-      type: 'Text',
-      category: 'Technical',
-      date: '2024-01-12',
-      duration: '45 mins',
-      score: 78,
-      totalQuestions: 5,
-      correctAnswers: 4,
-      status: 'completed',
-      feedback: 'Strong architectural thinking. Improve scalability considerations.'
-    },
-    {
-      id: 3,
-      title: 'Behavioral Questions',
-      type: 'Voice',
-      category: 'HR',
-      date: '2024-01-10',
-      duration: '30 mins',
-      score: 92,
-      totalQuestions: 8,
-      correctAnswers: 8,
-      status: 'completed',
-      feedback: 'Excellent communication skills and clear examples using STAR method.'
-    },
-    {
-      id: 4,
-      title: 'Data Structures Deep Dive',
-      type: 'MCQ',
-      category: 'Technical',
-      date: '2024-01-08',
-      duration: '35 mins',
-      score: 72,
-      totalQuestions: 25,
-      correctAnswers: 18,
-      status: 'completed',
-      feedback: 'Good grasp of basic structures. Practice more complex tree algorithms.'
-    },
-    {
-      id: 5,
-      title: 'Communication Skills Assessment',
-      type: 'Video',
-      category: 'Communication',
-      date: '2024-01-05',
-      duration: '40 mins',
-      score: 88,
-      totalQuestions: 6,
-      correctAnswers: 5,
-      status: 'completed',
-      feedback: 'Great presentation skills. Work on maintaining eye contact.'
-    },
-    {
-      id: 6,
-      title: 'Aptitude Test - Logical Reasoning',
-      type: 'MCQ',
-      category: 'Aptitude',
-      date: '2024-01-03',
-      duration: '20 mins',
-      score: 95,
-      totalQuestions: 15,
-      correctAnswers: 14,
-      status: 'completed',
-      feedback: 'Outstanding logical reasoning abilities. Keep up the excellent work!'
-    },
-    {
-      id: 7,
-      title: 'React Advanced Concepts',
-      type: 'Text',
-      category: 'Technical',
-      date: '2024-01-01',
-      duration: '50 mins',
-      score: 0,
-      totalQuestions: 0,
-      correctAnswers: 0,
-      status: 'incomplete',
-      feedback: 'Interview was not completed.'
-    }
-  ];
+  const formatTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
+  React.useEffect(() => {
+    const fetchHistory = async () => {
+      if (user?.id) {
+        try {
+          const api = await import('../lib/api');
+          const progressData = await api.coursesApi.getUserProgress(user.id);
+
+          // Filter for completed courses and map to history format
+          const formattedHistory = progressData
+            .filter((p: any) => p.progress === 100)
+            .map((p: any, index: number) => ({
+              id: p._id || index,
+              title: p.courseId?.title || 'Unknown Course',
+              type: 'Course',
+              category: p.courseId?.level || 'General', // Using level as category proxy
+              date: p.completedAt ? new Date(p.completedAt).toLocaleDateString() : new Date().toLocaleDateString(),
+              duration: formatTime(p.timeSpentSeconds || 0),
+              rawDuration: p.timeSpentSeconds || 0,
+              score: p.score || 0,
+              totalQuestions: 0, // Not available in simple course progress
+              correctAnswers: 0,
+              status: 'completed',
+              feedback: 'Course completed successfully.'
+            }));
+
+          setHistoryData(formattedHistory);
+        } catch (error) {
+          console.error("Failed to fetch history:", error);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
+    };
+
+    fetchHistory();
+  }, [user]);
+
+  const interviewHistory = historyData;
+
+  const totalTimeSeconds = interviewHistory.reduce((acc, h) => acc + (h.rawDuration || 0), 0);
 
   const stats = [
     {
-      title: 'Total Interviews',
-      value: interviewHistory.filter(h => h.status === 'completed').length,
+      title: 'Completed Courses',
+      value: interviewHistory.length,
       icon: <Target className="w-4 h-4" />,
       color: 'text-blue-600'
     },
     {
       title: 'Average Score',
-      value: Math.round(
-        interviewHistory
-          .filter(h => h.status === 'completed')
-          .reduce((acc, h) => acc + h.score, 0) / 
-        interviewHistory.filter(h => h.status === 'completed').length
-      ) + '%',
+      value: interviewHistory.length > 0 ? Math.round(
+        interviewHistory.reduce((acc, h) => acc + (h.score || 0), 0) / interviewHistory.length
+      ) + '%' : '0%',
       icon: <TrendingUp className="w-4 h-4" />,
       color: 'text-green-600'
     },
     {
       title: 'Total Time Spent',
-      value: '4h 25m',
+      value: formatTime(totalTimeSeconds),
       icon: <Clock className="w-4 h-4" />,
       color: 'text-purple-600'
     },
     {
       title: 'Best Score',
-      value: Math.max(...interviewHistory.filter(h => h.status === 'completed').map(h => h.score)) + '%',
+      value: interviewHistory.length > 0 ? Math.max(...interviewHistory.map(h => h.score || 0)) + '%' : '0%',
       icon: <CheckCircle className="w-4 h-4" />,
       color: 'text-yellow-600'
     }
@@ -152,10 +109,10 @@ const History: React.FC = () => {
 
   const filteredHistory = interviewHistory.filter(interview => {
     const matchesSearch = interview.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         interview.category.toLowerCase().includes(searchTerm.toLowerCase());
+      interview.category.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === 'all' || interview.type.toLowerCase() === filterType.toLowerCase();
     const matchesCategory = filterCategory === 'all' || interview.category.toLowerCase() === filterCategory.toLowerCase();
-    
+
     return matchesSearch && matchesType && matchesCategory;
   });
 
@@ -224,7 +181,7 @@ const History: React.FC = () => {
                   className="pl-10"
                 />
               </div>
-              
+
               <Select value={filterType} onValueChange={setFilterType}>
                 <SelectTrigger>
                   <SelectValue placeholder="Interview Type" />
@@ -294,8 +251,8 @@ const History: React.FC = () => {
                         <div>
                           <div className="font-medium text-gray-900">{interview.title}</div>
                           <div className="text-sm text-gray-500">
-                            {interview.status === 'completed' ? 
-                              `${interview.correctAnswers}/${interview.totalQuestions} correct` : 
+                            {interview.status === 'completed' ?
+                              `${interview.correctAnswers}/${interview.totalQuestions} correct` :
                               'Not completed'
                             }
                           </div>
@@ -348,7 +305,7 @@ const History: React.FC = () => {
                 </TableBody>
               </Table>
             </div>
-            
+
             {filteredHistory.length === 0 && (
               <div className="text-center py-8">
                 <p className="text-gray-500">No interviews found matching your criteria.</p>

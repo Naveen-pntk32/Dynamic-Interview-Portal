@@ -9,6 +9,7 @@ interface User {
   resume?: string;
   phone?: string;
   skills?: string[];
+  interviewHistory?: any[]; // Using any[] for now to match flexible backend structure, can be typed strictly later
 }
 
 interface AuthContextType {
@@ -80,6 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resume: data.resume,
         phone: data.phone,
         skills: data.skills || [],
+        interviewHistory: data.interviewHistory || [],
       };
       setUser(loggedUser);
       localStorage.setItem('user', JSON.stringify(loggedUser));
@@ -109,6 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resume: data.resume || resume,
         phone: data.phone || phone,
         skills: data.skills || skills || [],
+        interviewHistory: data.interviewHistory || [],
       };
       setUser(newUser);
       localStorage.setItem('user', JSON.stringify(newUser));

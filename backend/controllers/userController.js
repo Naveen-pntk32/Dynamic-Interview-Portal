@@ -48,6 +48,7 @@ exports.registerUser = async (req, res) => {
             resume: newUser.resume,
             phone: newUser.phone,
             skills: newUser.skills,
+            interviewHistory: newUser.interviewHistory,
             token,
         });
     }
@@ -86,6 +87,7 @@ exports.loginUser = async (req, res) => {
             resume: user.resume,
             phone: user.phone,
             skills: user.skills,
+            interviewHistory: user.interviewHistory,
             token,
         });
     }

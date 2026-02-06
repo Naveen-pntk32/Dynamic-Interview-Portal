@@ -11,6 +11,14 @@ const userSchema = new mongoose.Schema(
     resume: { type: String, default: '' },
     phone: { type: String, default: '' },
     skills: { type: [String], default: [] },
+    interviewHistory: [
+      {
+        title: { type: String },
+        score: { type: Number },
+        date: { type: Date, default: Date.now },
+        type: { type: String }
+      }
+    ],
     role: {
       type: String,
       enum: ['student', 'admin'],

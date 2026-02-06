@@ -4,12 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { 
-  Calendar, 
-  Clock, 
-  BookOpen, 
-  Trophy, 
-  TrendingUp, 
+import {
+  Calendar,
+  Clock,
+  BookOpen,
+  Trophy,
+  TrendingUp,
   Play,
   History,
   Star,
@@ -19,6 +19,53 @@ import {
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  const [courseStats, setCourseStats] = React.useState({ completed: 0, avgScore: 0, timeSpent: 0, inProgress: [] as any[] });
+
+  const formatTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
+  React.useEffect(() => {
+    const fetchProgress = async () => {
+      if (user?.id) {
+        try {
+          const api = await import('../lib/api');
+          const data = await api.coursesApi.getUserProgress(user.id);
+
+          const inProgress = data.filter((p: any) => p.progress > 0 && p.progress < 100).map((p: any, index: number) => ({
+            id: p._id || index,
+            title: p.courseId?.title || 'Unknown Course',
+            date: p.lastAccessedAt || p.startedAt,
+            type: 'Course',
+            score: p.progress,
+            status: 'In Progress'
+          }));
+
+          const completed = data.filter((p: any) => p.progress === 100);
+          const totalCompleted = completed.length;
+          const totalScore = completed.reduce((acc: number, curr: any) => acc + (curr.score || 0), 0);
+          const avgScore = totalCompleted > 0 ? Math.round(totalScore / totalCompleted) : 0;
+          const timeSpent = completed.reduce((acc: number, curr: any) => acc + (curr.timeSpentSeconds || 0), 0);
+
+          setCourseStats({
+            completed: totalCompleted,
+            avgScore,
+            timeSpent,
+            inProgress
+          });
+
+        } catch (error) {
+          console.error("Failed to fetch course progress:", error);
+        }
+      }
+    };
+    fetchProgress();
+  }, [user]);
+
+  const hasInterviews = courseStats.completed > 0 || courseStats.inProgress.length > 0;
 
   const upcomingInterviews = [
     {
@@ -39,29 +86,10 @@ const Dashboard: React.FC = () => {
     }
   ];
 
-  const recentHistory = [
-    {
-      id: 1,
-      title: 'JavaScript Fundamentals',
-      score: 85,
-      date: '2024-01-10',
-      type: 'MCQ'
-    },
-    {
-      id: 2,
-      title: 'System Design Basics',
-      score: 78,
-      date: '2024-01-08',
-      type: 'Text'
-    },
-    {
-      id: 3,
-      title: 'Behavioral Questions',
-      score: 92,
-      date: '2024-01-05',
-      type: 'Voice'
-    }
-  ];
+  // Use in-progress courses for recent activity
+  const recentHistory = courseStats.inProgress.length > 0
+    ? courseStats.inProgress.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 3)
+    : [];
 
   const recommendedCourses = [
     {
@@ -89,30 +117,30 @@ const Dashboard: React.FC = () => {
 
   const stats = [
     {
-      title: 'Total Interviews',
-      value: '24',
-      change: '+3 this week',
+      title: 'Completed Courses',
+      value: courseStats.completed.toString(),
+      change: hasInterviews ? '+1 this week' : 'Start your first!',
       icon: <Target className="w-4 h-4" />,
       color: 'text-blue-600'
     },
     {
       title: 'Average Score',
-      value: '85%',
-      change: '+5% improvement',
+      value: `${courseStats.avgScore}%`,
+      change: hasInterviews ? '+5% improvement' : 'No data yet',
       icon: <TrendingUp className="w-4 h-4" />,
       color: 'text-green-600'
     },
     {
-      title: 'Courses Completed',
-      value: '8',
-      change: '2 in progress',
-      icon: <BookOpen className="w-4 h-4" />,
+      title: 'Total Time Spent',
+      value: formatTime(courseStats.timeSpent),
+      change: 'Keep learning',
+      icon: <Clock className="w-4 h-4" />,
       color: 'text-purple-600'
     },
     {
       title: 'Streak Days',
-      value: '12',
-      change: 'Keep it up!',
+      value: '0',
+      change: 'Start today!',
       icon: <Star className="w-4 h-4" />,
       color: 'text-yellow-600'
     }
@@ -124,10 +152,10 @@ const Dashboard: React.FC = () => {
         {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">
-            Welcome back, {user?.username}!
+            {hasInterviews ? `Welcome back, ${user?.username}!` : `Hello, ${user?.username}!`}
           </h1>
           <p className="text-gray-600 mt-2">
-            Ready to continue your interview preparation journey?
+            {hasInterviews ? 'Ready to continue your interview preparation journey?' : 'Start your interview'}
           </p>
         </div>
 
@@ -242,11 +270,11 @@ const Dashboard: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {recentHistory.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  {recentHistory.map((item: any, index: number) => (
+                    <div key={item.id || item._id || index} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex-1">
                         <h4 className="font-medium text-gray-900">{item.title}</h4>
-                        <p className="text-sm text-gray-600">{item.date}</p>
+                        <p className="text-sm text-gray-600">{new Date(item.date).toLocaleDateString()}</p>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Badge variant="outline">{item.type}</Badge>
@@ -256,6 +284,11 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
                   ))}
+                  {recentHistory.length === 0 && (
+                    <p className="text-gray-500 text-center py-4">
+                      No recent activity. Start your first interview!
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>

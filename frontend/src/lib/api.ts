@@ -155,8 +155,8 @@ export const coursesApi = {
     request(`/api/courses/category/${categoryId}`),
 
   // Get user's course progress
-  getUserProgress: () =>
-    request('/api/courses/progress'),
+  getUserProgress: (userId: string) =>
+    request(`/api/courses/progress?userId=${userId}`),
 
   // Start or continue a course
   startCourse: (courseId: string) =>
