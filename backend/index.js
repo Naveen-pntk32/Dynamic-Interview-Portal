@@ -19,6 +19,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/users', userRoutes);
 app.use('/api/courses', categoryRoutes);
+app.use('/api/community', require('./routes/communityRoutes.js'));
 
 const PORT = process.env.PORT || 5000;
 

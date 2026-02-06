@@ -19,7 +19,22 @@ import {
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const [courseStats, setCourseStats] = React.useState({ completed: 0, avgScore: 0, timeSpent: 0, inProgress: [] as any[] });
+  const [courseStats, setCourseStats] = React.useState({
+    completed: 0,
+    avgScore: 0,
+    timeSpent: 0,
+    inProgress: [] as any[],
+    progressOverview: {
+      overall: 0,
+      technical: 0,
+      communication: 0
+    },
+    communityStats: {
+      activeUsers: 0,
+      interviewsToday: 0,
+      rank: 0
+    }
+  });
 
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -33,32 +48,71 @@ const Dashboard: React.FC = () => {
       if (user?.id) {
         try {
           const api = await import('../lib/api');
-          const data = await api.coursesApi.getUserProgress(user.id);
 
-          const inProgress = data.filter((p: any) => p.progress > 0 && p.progress < 100).map((p: any, index: number) => ({
-            id: p._id || index,
-            title: p.courseId?.title || 'Unknown Course',
-            date: p.lastAccessedAt || p.startedAt,
-            type: 'Course',
-            score: p.progress,
-            status: 'In Progress'
-          }));
+          const [progressData, allCourses, categories, commStats] = await Promise.all([
+            api.coursesApi.getUserProgress(user.id),
+            api.coursesApi.getAllCourses(),
+            api.coursesApi.getCategories(),
+            api.communityApi.getStats(user.id)
+          ]);
 
-          const completed = data.filter((p: any) => p.progress === 100);
-          const totalCompleted = completed.length;
-          const totalScore = completed.reduce((acc: number, curr: any) => acc + (curr.score || 0), 0);
-          const avgScore = totalCompleted > 0 ? Math.round(totalScore / totalCompleted) : 0;
-          const timeSpent = completed.reduce((acc: number, curr: any) => acc + (curr.timeSpentSeconds || 0), 0);
+          // Identify category IDs
+          const techCat = categories.find((c: any) => c.name.toLowerCase().includes('technical') || c.name.toLowerCase().includes('dsa') || c.name === 'Technical');
+          const commCat = categories.find((c: any) => c.name.toLowerCase().includes('communication') || c.name.toLowerCase().includes('soft') || c.name === 'Soft Skills');
+
+          const techCatId = techCat?.id;
+          const commCatId = commCat?.id;
+
+          // Totals available
+          const totalCourses = allCourses.length;
+          const totalTechCourses = allCourses.filter((c: any) => c.categoryId === techCatId).length;
+          const totalCommCourses = allCourses.filter((c: any) => c.categoryId === commCatId).length;
+
+          // User completed counts (completed = 100% progress)
+          const completedInfo = progressData.filter((p: any) => p.progress === 100);
+          const completedTotal = completedInfo.length;
+          const completedTech = completedInfo.filter((p: any) => p.courseId?.categoryId === techCatId).length;
+          const completedComm = completedInfo.filter((p: any) => p.courseId?.categoryId === commCatId).length;
+
+          // Percentages
+          const overallPct = totalCourses > 0 ? Math.round((completedTotal / totalCourses) * 100) : 0;
+          const techPct = totalTechCourses > 0 ? Math.round((completedTech / totalTechCourses) * 100) : 0;
+          const commPct = totalCommCourses > 0 ? Math.round((completedComm / totalCommCourses) * 100) : 0;
+
+          const inProgress = progressData
+            .filter((p: any) => p.progress > 0 && p.progress < 100)
+            .map((p: any, index: number) => ({
+              id: p._id || index,
+              title: p.courseId?.title || 'Unknown Course',
+              date: p.lastAccessedAt || p.startedAt,
+              type: 'Course',
+              score: p.progress,
+              status: 'In Progress'
+            }));
+
+          const totalScore = completedInfo.reduce((acc: number, curr: any) => acc + (curr.score || 0), 0);
+          const avgScore = completedTotal > 0 ? Math.round(totalScore / completedTotal) : 0;
+          const timeSpent = completedInfo.reduce((acc: number, curr: any) => acc + (curr.timeSpentSeconds || 0), 0);
 
           setCourseStats({
-            completed: totalCompleted,
+            completed: completedTotal,
             avgScore,
             timeSpent,
-            inProgress
+            inProgress,
+            progressOverview: {
+              overall: overallPct,
+              technical: techPct,
+              communication: commPct
+            },
+            communityStats: {
+              activeUsers: commStats.activeUsers || 0,
+              interviewsToday: commStats.interviewsToday || 0,
+              rank: commStats.userRank || 0
+            }
           });
 
         } catch (error) {
-          console.error("Failed to fetch course progress:", error);
+          console.error("Failed to fetch dashboard data:", error);
         }
       }
     };
@@ -309,28 +363,28 @@ const Dashboard: React.FC = () => {
                   <div>
                     <div className="flex justify-between text-sm mb-1">
                       <span>Overall Progress</span>
-                      <span>75%</span>
+                      <span>{courseStats.progressOverview.overall}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-blue-600 h-2 rounded-full" style={{ width: '75%' }}></div>
+                      <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${courseStats.progressOverview.overall}%` }}></div>
                     </div>
                   </div>
                   <div>
                     <div className="flex justify-between text-sm mb-1">
                       <span>Technical Skills</span>
-                      <span>80%</span>
+                      <span>{courseStats.progressOverview.technical}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-green-600 h-2 rounded-full" style={{ width: '80%' }}></div>
+                      <div className="bg-green-600 h-2 rounded-full" style={{ width: `${courseStats.progressOverview.technical}%` }}></div>
                     </div>
                   </div>
                   <div>
                     <div className="flex justify-between text-sm mb-1">
                       <span>Communication</span>
-                      <span>65%</span>
+                      <span>{courseStats.progressOverview.communication}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-yellow-600 h-2 rounded-full" style={{ width: '65%' }}></div>
+                      <div className="bg-yellow-600 h-2 rounded-full" style={{ width: `${courseStats.progressOverview.communication}%` }}></div>
                     </div>
                   </div>
                 </div>
@@ -366,30 +420,34 @@ const Dashboard: React.FC = () => {
             </Card>
 
             {/* Community Stats */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Users className="w-5 h-5 mr-2" />
-                  Community
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Your Rank</span>
-                    <span className="font-medium">#247</span>
+            <Link to="/leaderboard">
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Users className="w-5 h-5 mr-2" />
+                    Community
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Your Rank</span>
+                      <span className="font-medium">
+                        {courseStats.communityStats.rank > 0 ? `#${courseStats.communityStats.rank}` : '-'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Active Users</span>
+                      <span className="font-medium">{courseStats.communityStats.activeUsers}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Interviews Today</span>
+                      <span className="font-medium">{courseStats.communityStats.interviewsToday}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Active Users</span>
-                    <span className="font-medium">12,450</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Interviews Today</span>
-                    <span className="font-medium">1,234</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </Link>
           </div>
         </div>
       </div>

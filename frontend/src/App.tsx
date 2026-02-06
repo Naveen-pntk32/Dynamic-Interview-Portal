@@ -17,6 +17,7 @@ import StartInterview from '@/pages/StartInterview';
 import History from '@/pages/History';
 import Profile from '@/pages/Profile';
 import About from '@/pages/About';
+import Leaderboard from '@/pages/Leaderboard';
 import NotFound from '@/pages/NotFound';
 
 const queryClient = new QueryClient();
@@ -36,7 +37,7 @@ const App = () => (
               <Route path="/signup" element={<Signup />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/about" element={<About />} />
-              
+
               {/* Protected Routes */}
               <Route path="/dashboard" element={
                 <ProtectedRoute>
@@ -63,7 +64,12 @@ const App = () => (
                   <Profile />
                 </ProtectedRoute>
               } />
-              
+              <Route path="/leaderboard" element={
+                <ProtectedRoute>
+                  <Leaderboard />
+                </ProtectedRoute>
+              } />
+
               {/* 404 Route */}
               <Route path="*" element={<NotFound />} />
             </Routes>

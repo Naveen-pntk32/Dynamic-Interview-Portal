@@ -170,4 +170,12 @@ export const coursesApi = {
     }),
 };
 
+export const communityApi = {
+  getStats: (userId?: string) =>
+    request(`/api/community/stats${userId ? `?userId=${userId}` : ''}`),
+
+  getLeaderboard: (params: { page: number; limit: number; search: string }) =>
+    request(`/api/community/leaderboard?page=${params.page}&limit=${params.limit}&search=${params.search}`),
+};
+
 export default request;
