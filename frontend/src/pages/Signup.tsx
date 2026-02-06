@@ -16,7 +16,7 @@ const Signup: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Optional fields state
   const [bio, setBio] = useState('');
@@ -25,8 +25,16 @@ const Signup: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [skillsInput, setSkillsInput] = useState('');
 
-  const { signup } = useAuth();
+  const { signup, user, isLoading } = useAuth();
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (user && !isLoading) {
+      navigate('/dashboard');
+    }
+  }, [user, isLoading, navigate]);
+
+  if (isLoading) return null; // or a loading spinner
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +51,7 @@ const Signup: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     try {
       const skills = skillsInput.split(',').map(s => s.trim()).filter(s => s.length > 0);
@@ -56,7 +64,7 @@ const Signup: React.FC = () => {
     } catch (err) {
       setError('An error occurred. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -212,9 +220,9 @@ const Signup: React.FC = () => {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isLoading}
+                disabled={isSubmitting}
               >
-                {isLoading ? 'Creating account...' : 'Create Account'}
+                {isSubmitting ? 'Creating account...' : 'Create Account'}
               </Button>
             </form>
 
