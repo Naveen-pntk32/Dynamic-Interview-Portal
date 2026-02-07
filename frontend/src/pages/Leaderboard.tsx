@@ -142,9 +142,7 @@ const Leaderboard: React.FC = () => {
                                                         <TableCell>
                                                             <div>
                                                                 <div className="font-medium">{u.username}</div>
-                                                                {user?.id === u._id && (
-                                                                    <Badge variant="secondary" className="mt-1 text-xs">You</Badge>
-                                                                )}
+
                                                             </div>
                                                         </TableCell>
                                                         <TableCell className="text-center">

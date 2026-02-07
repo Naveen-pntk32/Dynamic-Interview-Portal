@@ -4,8 +4,59 @@ const { addCategoryCourses, deleteCategoryCourses } = require('./categoryControl
 
 exports.getAllCourses = async (req, res) => {
     try {
-        const courses = await Course.find();
-        res.json(courses);
+        const courses = await Course.aggregate([
+            {
+                $lookup: {
+                    from: 'courseprogresses',
+                    localField: '_id',
+                    foreignField: 'courseId',
+                    as: 'enrollments'
+                }
+            },
+            {
+                $addFields: {
+                    completedEnrollments: {
+                        $filter: {
+                            input: "$enrollments",
+                            as: "enr",
+                            cond: { $eq: ["$$enr.progress", 100] }
+                        }
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    students: { $size: '$completedEnrollments' },
+                    calculatedRating: {
+                        $cond: {
+                            if: { $gt: [{ $size: "$completedEnrollments" }, 0] },
+                            then: { $divide: [{ $avg: "$completedEnrollments.score" }, 20] },
+                            else: 0
+                        }
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    rating: { $cond: { if: { $gt: ["$calculatedRating", 0] }, then: { $round: ["$calculatedRating", 1] }, else: "$rating" } }
+                }
+            },
+            {
+                $project: {
+                    enrollments: 0,
+                    completedEnrollments: 0,
+                    calculatedRating: 0
+                }
+            }
+        ]);
+
+        // Populate createdAt from _id if missing (since schema didn't have timestamps: true initially)
+        const coursesWithDate = courses.map(course => ({
+            ...course,
+            createdAt: course.createdAt || course._id.getTimestamp()
+        }));
+
+        res.json(coursesWithDate);
     }
     catch (error) {
         console.error("Get all courses error:", error);

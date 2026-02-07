@@ -93,6 +93,7 @@ export interface Course {
   topics: string[];
   progress: number;
   categoryId: string;
+  createdAt?: string;
 }
 
 /**

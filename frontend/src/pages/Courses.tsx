@@ -6,41 +6,44 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { coursesApi, type Course, type Category } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
-import { 
-  BookOpen, 
-  Search, 
-  Clock, 
-  Users, 
+import {
+  BookOpen,
+  Search,
+  Clock,
+  Users,
   Star,
   Play,
   Code,
   MessageSquare,
   Calculator,
   Brain,
-  Loader2
+  Loader2,
+  Calendar
 } from 'lucide-react';
 
 const Courses: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
-  
+
   const [coursesByCategory, setCoursesByCategory] = useState<Record<string, Course[]>>({});
   const [userProgress, setUserProgress] = useState<Record<string, number>>({});
   const [activeCategory, setActiveCategory] = useState('all');
 
-  
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         const categoriesData: Category[] = await coursesApi.getCategories();
         setCategories(categoriesData);
-        
+
         const mapping: Record<string, Course[]> = {};
         const allCourses: Course[] = await coursesApi.getAllCourses();
-        
+
         categoriesData.forEach(category => {
           for (const course of allCourses) {
             // console.log(category.coursesId, course._id);
@@ -52,12 +55,12 @@ const Courses: React.FC = () => {
             }
           }
         });
-        
+
         setCoursesByCategory(mapping);
 
         // If user is logged in, fetch their progress
         if (user) {
-          const progressData = await coursesApi.getUserProgress();
+          const progressData = await coursesApi.getUserProgress(user.id);
           setUserProgress(progressData);
         }
       } catch (error) {
@@ -102,7 +105,7 @@ const Courses: React.FC = () => {
         variant: "default"
       });
       // Refresh progress
-      const progressData = await coursesApi.getUserProgress();
+      const progressData = await coursesApi.getUserProgress(user.id);
       setUserProgress(progressData);
     } catch (error) {
       toast({
@@ -201,8 +204,8 @@ const Courses: React.FC = () => {
                 <span>{course.progress}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all" 
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all"
                   style={{ width: `${course.progress}%` }}
                 ></div>
               </div>
@@ -223,8 +226,8 @@ const Courses: React.FC = () => {
                 </>
               )}
             </Button>
-            <Button variant="outline" size="sm">
-              Preview
+            <Button variant="outline" size="sm" onClick={() => navigate('/history')}>
+              Past Attempts
             </Button>
           </div>
         </div>
