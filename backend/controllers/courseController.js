@@ -135,3 +135,68 @@ exports.getUserCourseProgress = async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 }
+
+exports.startCourse = async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const userId = req.user.id; // Correctly get userId from auth middleware
+
+        let progress = await CourseProgress.findOne({ userId, courseId });
+
+        if (!progress) {
+            progress = new CourseProgress({
+                userId,
+                courseId,
+                startedAt: new Date(),
+                attempts: 1
+            });
+        } else {
+            progress.attempts += 1;
+            progress.lastAccessedAt = new Date();
+            // Reset for new attempt if completed previously? Or keep history?
+            // For now, let's just update access time.
+        }
+
+        await progress.save();
+        res.status(200).json(progress);
+    } catch (error) {
+        console.error("Start course error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+}
+
+exports.updateCourseProgress = async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const userId = req.user.id;
+        const { progress, score, timeSpentSeconds, answers } = req.body;
+
+        let courseProgress = await CourseProgress.findOne({ userId, courseId });
+
+        if (!courseProgress) {
+            courseProgress = new CourseProgress({
+                userId,
+                courseId,
+                startedAt: new Date(), // If not started officially, start now
+                attempts: 1
+            });
+        }
+
+        if (progress !== undefined) courseProgress.progress = progress;
+        if (score !== undefined) courseProgress.score = score;
+        if (timeSpentSeconds !== undefined) courseProgress.timeSpentSeconds = (courseProgress.timeSpentSeconds || 0) + timeSpentSeconds;
+        if (answers) courseProgress.metadata = { ...courseProgress.metadata, answers };
+
+        courseProgress.lastAccessedAt = new Date();
+
+        if (progress === 100 && !courseProgress.completedAt) {
+            courseProgress.completedAt = new Date();
+        }
+
+        await courseProgress.save();
+        res.json(courseProgress);
+    } catch (error) {
+        console.error("Update course progress error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+}

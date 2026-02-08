@@ -168,10 +168,10 @@ export const coursesApi = {
     request(`/api/courses/${courseId}/start`, { method: 'POST' }),
 
   // Update course progress
-  updateProgress: (courseId: string, progress: number) =>
+  updateProgress: (courseId: string, data: { progress: number; score?: number; timeSpentSeconds?: number; answers?: any }) =>
     request(`/api/courses/${courseId}/progress`, {
       method: 'PUT',
-      body: JSON.stringify({ progress })
+      body: JSON.stringify(data)
     }),
 };
 

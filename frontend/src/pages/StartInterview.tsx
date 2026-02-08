@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import {
   Play,
   Mic,
-  Video,
+  Video as VideoIcon,
   FileText,
   CheckCircle,
   Clock,
@@ -17,21 +17,37 @@ import {
   Volume2,
   Camera,
   ArrowRight,
-  ArrowLeft
+  ArrowLeft,
+  MicOff,
+  VideoOff
 } from 'lucide-react';
 import { coursesApi, type Course } from '@/lib/api';
+import { toast } from 'sonner';
+
+// Polyfill for SpeechRecognition
+const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
 const StartInterview: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [selectedType, setSelectedType] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [course, setCourse] = useState<Course | null>(null);
 
-  const [currentStep, setCurrentStep] = useState<'select' | 'setup' | 'interview'>('select');
+  const [currentStep, setCurrentStep] = useState<'select' | 'ready' | 'interview' | 'completed'>('select');
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState<string[]>([]);
+  const [answers, setAnswers] = useState<any[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<string>('');
   const [textAnswer, setTextAnswer] = useState<string>('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [timer, setTimer] = useState(0);
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // Stats for ready page
+  const [questionCount, setQuestionCount] = useState(0);
+  const [estDuration, setEstDuration] = useState('');
 
   const interviewTypes = [
     {
@@ -65,7 +81,7 @@ const StartInterview: React.FC = () => {
       id: 'video',
       name: 'Video Interview',
       description: 'Full video interview simulation',
-      icon: <Video className="w-8 h-8" />,
+      icon: <VideoIcon className="w-8 h-8" />,
       duration: '30-60 mins',
       difficulty: 'Hard',
       color: 'border-red-200 hover:border-red-400'
@@ -106,21 +122,25 @@ const StartInterview: React.FC = () => {
     voice: [
       {
         question: "Explain the concept of object-oriented programming and its key principles.",
-        duration: "2-3 minutes"
+        duration: "2-3 minutes",
+        keywords: ["encapsulation", "inheritance", "polymorphism", "abstraction"]
       },
       {
         question: "Walk me through your approach to debugging a complex issue in production.",
-        duration: "3-4 minutes"
+        duration: "3-4 minutes",
+        keywords: ["logs", "reproduce", "isolate", "fix"]
       }
     ],
     video: [
       {
         question: "Introduce yourself and explain why you're interested in this role.",
-        duration: "2-3 minutes"
+        duration: "2-3 minutes",
+        keywords: ["experience", "passion", "goals"]
       },
       {
         question: "Describe your greatest professional achievement and what you learned from it.",
-        duration: "3-4 minutes"
+        duration: "3-4 minutes",
+        keywords: ["achievement", "learned", "growth"]
       }
     ]
   };
@@ -129,380 +149,434 @@ const StartInterview: React.FC = () => {
     const initFromState = async () => {
       if (location.state?.courseId && location.state?.interviewType) {
         const typeId = location.state.interviewType;
-        // Verify type exists
         if (interviewTypes.find(t => t.id === typeId)) {
           setSelectedType(typeId);
-
-          try {
-            const courseData = await coursesApi.getCourseById(location.state.courseId);
-            setCourse(courseData);
-            // Bypass category selection by setting a flag or just relying on `course` state
-            // We set currentStep directly to 'setup'
-            setCurrentStep('setup');
-          } catch (error) {
-            console.error("Failed to fetch course details:", error);
-            // Fallback?
-          }
+          await loadCourse(location.state.courseId);
         }
       }
     };
-
     initFromState();
   }, [location.state]);
 
-  const handleStartInterview = () => {
-    if (selectedType && (selectedCategory || course)) {
-      setCurrentStep('setup');
+  const loadCourse = async (id: string) => {
+    try {
+      const courseData = await coursesApi.getCourseById(id);
+      setCourse(courseData);
+      setCurrentStep('ready');
+    } catch (error) {
+      console.error("Failed to fetch course:", error);
+      toast.error("Failed to load course details");
     }
   };
 
-  const handleBeginInterview = () => {
+  useEffect(() => {
+    if (selectedType) {
+      const qs = mockQuestions[selectedType as keyof typeof mockQuestions] || [];
+      setQuestionCount(qs.length);
+      const type = interviewTypes.find(t => t.id === selectedType);
+      setEstDuration(type?.duration || 'Unknown');
+    }
+  }, [selectedType]);
+
+  // Timer logic
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (currentStep === 'interview') {
+      interval = setInterval(() => {
+        setTimer(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [currentStep]);
+
+  // Setup Media for Video/Voice
+  useEffect(() => {
+    if (currentStep === 'interview' && (selectedType === 'video' || selectedType === 'voice')) {
+      const startMedia = async () => {
+        try {
+          const constraints = {
+            video: selectedType === 'video',
+            audio: true
+          };
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          setMediaStream(stream);
+          if (videoRef.current && selectedType === 'video') {
+            videoRef.current.srcObject = stream;
+          }
+        } catch (err) {
+          console.error("Error accessing media devices:", err);
+          toast.error("Failed to access camera/microphone");
+        }
+      };
+      startMedia();
+    }
+    return () => {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [currentStep, selectedType]);
+
+  // Speech Recognition Setup
+  useEffect(() => {
+    if (SpeechRecognition && (selectedType === 'voice' || selectedType === 'video')) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onresult = (event: any) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        setTextAnswer(prev => prev + ' ' + transcript);
+      };
+
+      recognitionRef.current = recognition;
+    }
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, [selectedType]);
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+    } else {
+      recognitionRef.current?.start();
+    }
+    setIsRecording(!isRecording);
+  };
+
+  const handleStartInterview = async () => {
+    if (course?._id) {
+      try {
+        await coursesApi.startCourse(course._id);
+      } catch (err) {
+        console.error("Failed to mark start:", err);
+      }
+    }
     setCurrentStep('interview');
     setCurrentQuestion(0);
+    setTimer(0);
     setAnswers([]);
   };
 
-  const handleNextQuestion = () => {
+  const handleNextQuestion = async () => {
+    // Save current answer
+    const currentQ = mockQuestions[selectedType as keyof typeof mockQuestions][currentQuestion];
+    let score = 0;
+
+    // Default scoring logic
     if (selectedType === 'mcq') {
-      setAnswers([...answers, selectedAnswer]);
+      if (parseInt(selectedAnswer) === (currentQ as any).correct) score = 100;
+      setAnswers([...answers, { question: currentQ.question, answer: selectedAnswer, score }]);
       setSelectedAnswer('');
     } else if (selectedType === 'text') {
-      setAnswers([...answers, textAnswer]);
+      // Simple length check for now
+      if (textAnswer.length > 50) score = 80; // Mock score
+      setAnswers([...answers, { question: currentQ.question, answer: textAnswer, score }]);
       setTextAnswer('');
+    } else {
+      // Voice/Video - Keyword match
+      const keywords = (currentQ as any).keywords || [];
+      const matched = keywords.filter((k: string) => textAnswer.toLowerCase().includes(k.toLowerCase()));
+      score = Math.round((matched.length / Math.max(keywords.length, 1)) * 100);
+      setAnswers([...answers, { question: currentQ.question, answer: textAnswer, score }]);
+      setTextAnswer('');
+      if (isRecording) toggleRecording(); // Stop recording
     }
 
-    const questions = mockQuestions[selectedType as keyof typeof mockQuestions] || [];
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
+    if (currentQuestion < questionCount - 1) {
+      setCurrentQuestion(prev => prev + 1);
     } else {
-      // Interview completed
-      alert('Interview completed! Results will be processed.');
+      finishInterview();
     }
   };
 
-  const renderInterviewSetup = () => (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Interview Setup</h2>
-        <p className="text-gray-600">Configure your interview settings before starting</p>
+  const finishInterview = async () => {
+    setCurrentStep('completed');
+    // Calculate final score
+    const validAnswers = answers; // answers state might not be updated yet due to closure, use functional update or ref if needed. 
+    // Actually, let's use the local 'answers' array + the one just pushed.
+    // Re-calculating correctly:
+    const finalAnswers = [...answers]; // This doesn't include the last one pushed above because state updates are async.
+    // Better to push to a local variable first or use a ref. 
+    // For simplicity, let's assume the last push is handled in handleNextQuestion before calling finish.
+    // Wait, handleNextQuestion calls setCurrentQuestion OR finishInterview.
+    // So distinct path.
+    // Let's pass the payload directly.
+
+    // Fix: We need to include the LAST answer in the payload.
+    const currentQ = mockQuestions[selectedType as keyof typeof mockQuestions][currentQuestion];
+    let lastScore = 0;
+    let lastAnswerVal = '';
+
+    if (selectedType === 'mcq') {
+      if (parseInt(selectedAnswer) === (currentQ as any).correct) lastScore = 100;
+      lastAnswerVal = selectedAnswer;
+    } else {
+      // Text/Voice/Video
+      const keywords = (currentQ as any).keywords || [];
+      if (keywords.length > 0) {
+        const matched = keywords.filter((k: string) => textAnswer.toLowerCase().includes(k.toLowerCase()));
+        lastScore = Math.round((matched.length / Math.max(keywords.length, 1)) * 100);
+      } else {
+        lastScore = textAnswer.length > 20 ? 80 : 40; // Mock
+      }
+      lastAnswerVal = textAnswer;
+    }
+
+    const allAnswers = [...answers, { question: currentQ.question, answer: lastAnswerVal, score: lastScore }];
+    const totalScore = Math.round(allAnswers.reduce((acc, curr) => acc + curr.score, 0) / allAnswers.length);
+
+    if (course?._id) {
+      try {
+        await coursesApi.updateProgress(course._id, {
+          progress: 100,
+          score: totalScore,
+          timeSpentSeconds: timer,
+          answers: allAnswers
+        });
+        toast.success("Interview completed and saved!");
+        navigate('/history');
+      } catch (err) {
+        console.error("Failed to save progress:", err);
+        toast.error("Failed to save results");
+      }
+    } else {
+      toast.success("Practice complete!");
+      navigate('/dashboard');
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // RENDERERS
+
+  const renderReadyPage = () => (
+    <div className="max-w-2xl mx-auto space-y-8 py-12">
+      <div className="text-center space-y-4">
+        <h1 className="text-3xl font-bold">Ready to Start?</h1>
+        <p className="text-gray-600">Please review the details below before beginning your interview.</p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* System Check */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Settings className="w-5 h-5 mr-2" />
-              System Check
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      <Card>
+        <CardContent className="p-6 space-y-6">
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div className="space-y-1">
+              <p className="font-medium">Questions</p>
+              <p className="text-2xl font-bold">{questionCount}</p>
+            </div>
+            <div className="space-y-1 text-right">
+              <p className="font-medium">Estimated Time</p>
+              <p className="text-2xl font-bold">{estDuration}</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="font-semibold">System Check</h3>
             <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <Camera className="w-4 h-4 mr-2 text-gray-600" />
+              <div className="flex items-center space-x-2">
+                <Camera className="w-5 h-5 text-gray-500" />
                 <span>Camera</span>
               </div>
-              <Badge variant="secondary" className="bg-green-100 text-green-800">
-                Ready
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                <CheckCircle className="w-3 h-3 mr-1" /> Ready
               </Badge>
             </div>
             <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <Mic className="w-4 h-4 mr-2 text-gray-600" />
+              <div className="flex items-center space-x-2">
+                <Mic className="w-5 h-5 text-gray-500" />
                 <span>Microphone</span>
               </div>
-              <Badge variant="secondary" className="bg-green-100 text-green-800">
-                Ready
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                <CheckCircle className="w-3 h-3 mr-1" /> Ready
               </Badge>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <Volume2 className="w-4 h-4 mr-2 text-gray-600" />
-                <span>Audio</span>
-              </div>
-              <Badge variant="secondary" className="bg-green-100 text-green-800">
-                Ready
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Interview Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Interview Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {course ? (
-              <div>
-                <Label className="text-sm font-medium text-gray-700">Course</Label>
-                <p className="text-sm text-gray-900 font-semibold">
-                  {course.title}
-                </p>
-                <p className="text-xs text-gray-500">{course.description}</p>
-              </div>
-            ) : (
-              <div>
-                <Label className="text-sm font-medium text-gray-700">Category</Label>
-                <p className="text-sm text-gray-600">
-                  {categories.find(c => c.id === selectedCategory)?.name}
-                </p>
-              </div>
-            )}
-
-            <div>
-              <Label className="text-sm font-medium text-gray-700">Type</Label>
-              <p className="text-sm text-gray-600">
-                {interviewTypes.find(t => t.id === selectedType)?.name}
-              </p>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium text-gray-700">Duration</Label>
-              <p className="text-sm text-gray-600">
-                {interviewTypes.find(t => t.id === selectedType)?.duration}
-              </p>
-            </div>
-            <div>
-              <Label className="text-sm font-medium text-gray-700">Questions</Label>
-              <p className="text-sm text-gray-600">
-                {mockQuestions[selectedType as keyof typeof mockQuestions]?.length || 0} questions
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex justify-center space-x-4">
-        <Button variant="outline" onClick={() => setCurrentStep('select')}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back
-        </Button>
-        <Button onClick={handleBeginInterview} size="lg">
+      <div className="flex justify-center gap-4">
+        <Button variant="outline" onClick={() => setCurrentStep('select')}>Cancel</Button>
+        <Button size="lg" onClick={handleStartInterview} className="px-8">
           <Play className="w-4 h-4 mr-2" />
-          Begin Interview
+          Acknowledge & Start
         </Button>
       </div>
     </div>
   );
 
-  const renderInterviewQuestion = () => {
-    const questions = mockQuestions[selectedType as keyof typeof mockQuestions] || [];
+  const renderInterview = () => {
+    const questions = mockQuestions[selectedType as keyof typeof mockQuestions];
     const question = questions[currentQuestion] as any;
 
-    if (!question) return <div>No questions available.</div>;
-
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">
-              Question {currentQuestion + 1} of {questions.length}
-            </h2>
-            <p className="text-gray-600">
-              {course ? course.title : categories.find(c => c.id === selectedCategory)?.name}
-            </p>
-          </div>
-          <div className="flex items-center text-gray-600">
-            <Clock className="w-4 h-4 mr-1" />
-            <span>15:30</span>
-          </div>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">{question.question}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {selectedType === 'mcq' && (
-              <RadioGroup value={selectedAnswer} onValueChange={setSelectedAnswer}>
-                <div className="space-y-3">
-                  {question.options?.map((option: string, index: number) => (
-                    <div key={index} className="flex items-center space-x-2">
-                      <RadioGroupItem value={index.toString()} id={`option-${index}`} />
-                      <Label htmlFor={`option-${index}`} className="flex-1 cursor-pointer">
-                        {option}
-                      </Label>
-                    </div>
-                  ))}
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 py-8 h-[calc(100vh-100px)]">
+        {/* Main Content Area */}
+        <div className="lg:col-span-2 space-y-6 flex flex-col">
+          {selectedType === 'video' && (
+            <div className="relative bg-black rounded-xl overflow-hidden aspect-video shadow-lg flex-1">
+              {mediaStream ? (
+                <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+              ) : (
+                <div className="flex items-center justify-center h-full text-white">
+                  <VideoOff className="w-12 h-12 opacity-50" />
                 </div>
-              </RadioGroup>
-            )}
-
-            {selectedType === 'text' && (
-              <div className="space-y-4">
-                <Textarea
-                  placeholder={question.placeholder}
-                  value={textAnswer}
-                  onChange={(e) => setTextAnswer(e.target.value)}
-                  className="min-h-[200px]"
-                />
-                <p className="text-sm text-gray-500">
-                  Take your time to provide a detailed response.
-                </p>
+              )}
+              <div className="absolute bottom-4 left-4 right-4 flex justify-center gap-4">
+                <Button
+                  variant={isRecording ? "destructive" : "secondary"}
+                  onClick={toggleRecording}
+                  className="rounded-full w-12 h-12 p-0"
+                >
+                  {isRecording ? <MicOff /> : <Mic />}
+                </Button>
               </div>
-            )}
+            </div>
+          )}
 
-            {(selectedType === 'voice' || selectedType === 'video') && (
-              <div className="text-center space-y-6">
-                <div className="p-8 border-2 border-dashed border-gray-300 rounded-lg">
-                  {selectedType === 'video' ? (
-                    <div className="bg-gray-900 rounded-lg h-64 flex items-center justify-center">
-                      <div className="text-white text-center">
-                        <Video className="w-12 h-12 mx-auto mb-2" />
-                        <p>Video preview will appear here</p>
+          {/* Question Card - For Video, it's below video. For others, it's main. */}
+          <Card className="flex-1 flex flex-col">
+            <CardHeader>
+              <CardTitle>Question {currentQuestion + 1} of {questions.length}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 space-y-6">
+              <p className="text-xl font-medium text-gray-800">{question.question}</p>
+
+              {selectedType === 'mcq' && (
+                <RadioGroup value={selectedAnswer} onValueChange={setSelectedAnswer}>
+                  <div className="space-y-3">
+                    {question.options?.map((opt: string, idx: number) => (
+                      <div key={idx} className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-gray-50">
+                        <RadioGroupItem value={idx.toString()} id={`opt-${idx}`} />
+                        <Label htmlFor={`opt-${idx}`} className="flex-1 cursor-pointer">{opt}</Label>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="py-12">
-                      <Mic className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-                      <p className="text-gray-600">Click start recording to begin</p>
-                    </div>
+                    ))}
+                  </div>
+                </RadioGroup>
+              )}
+
+              {(selectedType === 'text' || selectedType === 'voice') && (
+                <div className="space-y-4 flex-1 flex flex-col">
+                  <Textarea
+                    placeholder={question.placeholder || "Type your answer here..."}
+                    value={textAnswer}
+                    onChange={e => setTextAnswer(e.target.value)}
+                    className="flex-1 min-h-[200px] resize-none"
+                  />
+                  {selectedType === 'voice' && (
+                    <Button
+                      variant={isRecording ? "destructive" : "default"}
+                      onClick={toggleRecording}
+                      className="w-full"
+                    >
+                      {isRecording ? <><MicOff className="mr-2 h-4 w-4" /> Stop Recording</> : <><Mic className="mr-2 h-4 w-4" /> Start Recording</>}
+                    </Button>
                   )}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-600">
-                    Recommended duration: {question.duration}
-                  </p>
-                  <Button size="lg" className="bg-red-600 hover:bg-red-700">
-                    <Mic className="w-4 h-4 mr-2" />
-                    Start Recording
-                  </Button>
-                </div>
+        {/* Sidebar / Controls */}
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="p-6 text-center space-y-2">
+              <p className="text-sm text-gray-500">Time Elapsed</p>
+              <div className="text-4xl font-mono font-bold text-blue-600">
+                {formatTime(timer)}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <div className="flex justify-between">
-          <Button
-            variant="outline"
-            disabled={currentQuestion === 0}
-            onClick={() => setCurrentQuestion(currentQuestion - 1)}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Previous
-          </Button>
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              <h3 className="font-semibold">Controls</h3>
+              <div className="flex flex-col gap-3">
+                <Button variant="outline" onClick={() => setCurrentQuestion(Math.max(0, currentQuestion - 1))} disabled={currentQuestion === 0}>
+                  <ArrowLeft className="w-4 h-4 mr-2" /> Previous
+                </Button>
+                <Button onClick={handleNextQuestion}>
+                  {currentQuestion === questions.length - 1 ? 'Finish Interview' : 'Next Question'}
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-          <Button
-            onClick={handleNextQuestion}
-            disabled={
-              (selectedType === 'mcq' && !selectedAnswer) ||
-              (selectedType === 'text' && !textAnswer.trim())
-            }
-          >
-            {currentQuestion === questions.length - 1 ? 'Finish' : 'Next'}
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
+          {/* Video Preview for non-video types if desired, or just info */}
+          {selectedType !== 'video' && (
+            <Card className="bg-blue-50 border-blue-100">
+              <CardContent className="p-4">
+                <h4 className="font-medium text-blue-900 mb-2">Tips</h4>
+                <p className="text-sm text-blue-800">
+                  {selectedType === 'voice' ? 'Speak clearly and at a moderate pace. The system is transcribing your answer.' : 'Read the question carefully before answering.'}
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     );
   };
 
-  if (currentStep === 'setup') {
-    return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {renderInterviewSetup()}
-        </div>
+  // Original selection screen
+  const renderSelection = () => (
+    <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-bold text-gray-900 mb-4">Interview Practice</h1>
+        <p className="text-xl text-gray-600">Select a format to begin your session</p>
       </div>
-    );
-  }
 
-  if (currentStep === 'interview') {
-    return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {renderInterviewQuestion()}
-        </div>
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {interviewTypes.map((type) => (
+          <Card
+            key={type.id}
+            className={`cursor-pointer transition-all hover:shadow-lg ${selectedType === type.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
+            onClick={() => setSelectedType(type.id)}
+          >
+            <CardContent className="p-6 text-center space-y-4">
+              <div className={`mx-auto w-16 h-16 flex items-center justify-center rounded-full bg-white border-2 ${type.color}`}>
+                {type.icon}
+              </div>
+              <div>
+                <h3 className="font-bold text-lg">{type.name}</h3>
+                <p className="text-sm text-gray-500 mt-2">{type.description}</p>
+              </div>
+              <Badge variant="secondary">{type.difficulty}</Badge>
+            </CardContent>
+          </Card>
+        ))}
       </div>
-    );
-  }
+
+      {selectedType && (
+        <div className="mt-12 text-center">
+          {course ? (
+            <Button size="lg" onClick={() => setCurrentStep('ready')}>Continue with {course.title}</Button>
+          ) : (
+            // If checking mock flow directly
+            <Button size="lg" onClick={() => setCurrentStep('ready')}>Continue</Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            Start Your Interview Practice
-          </h1>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Choose your interview format and category to begin practicing.
-            Each format offers unique benefits to help you prepare effectively.
-          </p>
-        </div>
-
-        {/* Interview Type Selection */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Interview Type</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {interviewTypes.map((type) => (
-              <Card
-                key={type.id}
-                className={`cursor-pointer transition-all ${type.color} ${selectedType === type.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''
-                  }`}
-                onClick={() => setSelectedType(type.id)}
-              >
-                <CardContent className="p-6 text-center">
-                  <div className="flex justify-center mb-3 text-blue-600">
-                    {type.icon}
-                  </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">{type.name}</h3>
-                  <p className="text-sm text-gray-600 mb-3">{type.description}</p>
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-center text-xs text-gray-500">
-                      <Clock className="w-3 h-3 mr-1" />
-                      {type.duration}
-                    </div>
-                    <Badge variant="outline" className="text-xs">
-                      {type.difficulty}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        {/* Category Selection - Only show if NO course is pre-selected */}
-        {!course && selectedType && (
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Interview Category</h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {categories.map((category) => (
-                <Card
-                  key={category.id}
-                  className={`cursor-pointer transition-all border-gray-200 hover:border-blue-400 ${selectedCategory === category.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''
-                    }`}
-                  onClick={() => setSelectedCategory(category.id)}
-                >
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold text-gray-900 mb-2">{category.name}</h3>
-                    <div className="flex flex-wrap gap-1">
-                      {category.topics.map((topic, index) => (
-                        <Badge key={index} variant="outline" className="text-xs">
-                          {topic}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Start Button */}
-        {selectedType && (selectedCategory || course) && (
-          <div className="text-center">
-            <Button onClick={handleStartInterview} size="lg">
-              <Play className="w-4 h-4 mr-2" />
-              Start Interview
-            </Button>
-          </div>
-        )}
-      </div>
+    <div className="min-h-screen bg-gray-50 pt-20 pb-10">
+      {currentStep === 'select' && renderSelection()}
+      {currentStep === 'ready' && renderReadyPage()}
+      {currentStep === 'interview' && renderInterview()}
     </div>
   );
 };

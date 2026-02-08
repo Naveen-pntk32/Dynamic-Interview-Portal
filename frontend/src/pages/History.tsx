@@ -63,8 +63,8 @@ const History: React.FC = () => {
               duration: formatTime(p.timeSpentSeconds || 0),
               rawDuration: p.timeSpentSeconds || 0,
               score: p.score || 0,
-              totalQuestions: 0, // Not available in simple course progress
-              correctAnswers: 0,
+              totalQuestions: p.metadata?.answers?.length || 0,
+              correctAnswers: p.metadata?.answers?.filter((a: any) => a.score >= 50).length || 0,
               status: 'completed',
               feedback: 'Course completed successfully.'
             }));
