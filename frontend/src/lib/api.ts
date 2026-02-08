@@ -151,6 +151,10 @@ export const coursesApi = {
   getAllCourses: () =>
     request('/api/courses'),
 
+  // Get course by ID
+  getCourseById: (courseId: string) =>
+    request(`/api/courses/${courseId}`),
+
   // Get courses by category
   getCoursesByCategory: (categoryId: string) =>
     request(`/api/courses/category/${categoryId}`),

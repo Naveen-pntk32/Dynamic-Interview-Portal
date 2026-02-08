@@ -4,6 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { coursesApi, type Course, type Category } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -20,7 +27,12 @@ import {
   Calculator,
   Brain,
   Loader2,
-  Calendar
+  Calendar,
+  Mic,
+  Video,
+  FileText,
+  CheckCircle,
+  ArrowRight
 } from 'lucide-react';
 
 const Courses: React.FC = () => {
@@ -32,8 +44,10 @@ const Courses: React.FC = () => {
 
   const [coursesByCategory, setCoursesByCategory] = useState<Record<string, Course[]>>({});
   const [userProgress, setUserProgress] = useState<Record<string, number>>({});
-  const [activeCategory, setActiveCategory] = useState('all');
 
+  // New state for interview selection
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [isInterviewTypeModalOpen, setIsInterviewTypeModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -87,6 +101,13 @@ const Courses: React.FC = () => {
     }
   };
 
+  const interviewOptions = [
+    { id: 'mcq', label: 'Multiple Choice', description: 'Quick assessment with option-based questions', icon: CheckCircle, color: 'text-green-600 bg-green-100' },
+    { id: 'text', label: 'Text Based', description: 'Written responses to interview questions', icon: FileText, color: 'text-blue-600 bg-blue-100' },
+    { id: 'voice', label: 'Voice Interview', description: 'Speak your answers aloud for practice', icon: Mic, color: 'text-purple-600 bg-purple-100' },
+    { id: 'video', label: 'Video Interview', description: 'Full video interview simulation', icon: Video, color: 'text-red-600 bg-red-100' },
+  ];
+
   const handleStartCourse = async (courseId: string) => {
     if (!user) {
       toast({
@@ -97,16 +118,26 @@ const Courses: React.FC = () => {
       return;
     }
 
+    setSelectedCourseId(courseId);
+    setIsInterviewTypeModalOpen(true);
+  };
+
+  const handleInterviewTypeSelect = async (typeId: string) => {
+    if (!selectedCourseId) return;
+
     try {
-      await coursesApi.startCourse(courseId);
-      toast({
-        title: "Success",
-        description: "Course started successfully!",
-        variant: "default"
-      });
-      // Refresh progress
-      const progressData = await coursesApi.getUserProgress(user.id);
-      setUserProgress(progressData);
+      // Mark as started
+      await coursesApi.startCourse(selectedCourseId);
+
+      // Update progress locally if needed
+      if (user) {
+        const progressData = await coursesApi.getUserProgress(user.id);
+        setUserProgress(progressData);
+      }
+
+      setIsInterviewTypeModalOpen(false);
+      navigate('/start-interview', { state: { courseId: selectedCourseId, interviewType: typeId } });
+
     } catch (error) {
       toast({
         title: "Error",
@@ -226,7 +257,7 @@ const Courses: React.FC = () => {
                 </>
               )}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate('/history')}>
+            <Button variant="outline" size="sm" onClick={() => navigate('/history', { state: { courseId: course._id } })}>
               Past Attempts
             </Button>
           </div>
@@ -309,6 +340,36 @@ const Courses: React.FC = () => {
             </TabsContent>
           ))}
         </Tabs>
+
+        {/* Interview Type Selection Modal */}
+        <Dialog open={isInterviewTypeModalOpen} onOpenChange={setIsInterviewTypeModalOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Select Interview Style</DialogTitle>
+              <DialogDescription>
+                Choose how you want to practice for this course
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-1 gap-4 py-4">
+              {interviewOptions.map((option) => (
+                <div
+                  key={option.id}
+                  className="flex items-start space-x-4 p-4 rounded-lg border hover:border-blue-500 hover:bg-blue-50 cursor-pointer transition-all"
+                  onClick={() => handleInterviewTypeSelect(option.id)}
+                >
+                  <div className={`p-2 rounded-lg ${option.color}`}>
+                    <option.icon className="w-6 h-6" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-gray-900">{option.label}</h4>
+                    <p className="text-sm text-gray-500">{option.description}</p>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-gray-400 self-center" />
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

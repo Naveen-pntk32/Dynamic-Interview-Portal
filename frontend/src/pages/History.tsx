@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const History: React.FC = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -44,7 +46,14 @@ const History: React.FC = () => {
 
           // Filter for completed courses and map to history format
           const formattedHistory = progressData
-            .filter((p: any) => p.progress === 100)
+            .filter((p: any) => {
+              if (p.progress !== 100) return false;
+              if (location.state?.courseId) {
+                const pCourseId = p.courseId?._id || p.courseId;
+                return String(pCourseId) === String(location.state.courseId);
+              }
+              return true;
+            })
             .map((p: any, index: number) => ({
               id: p._id || index,
               title: p.courseId?.title || 'Unknown Course',
@@ -72,7 +81,7 @@ const History: React.FC = () => {
     };
 
     fetchHistory();
-  }, [user]);
+  }, [user, location.state]);
 
   const interviewHistory = historyData;
 

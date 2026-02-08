@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { 
-  Play, 
-  Mic, 
-  Video, 
-  FileText, 
-  CheckCircle, 
+import {
+  Play,
+  Mic,
+  Video,
+  FileText,
+  CheckCircle,
   Clock,
   Settings,
   Volume2,
@@ -18,10 +19,14 @@ import {
   ArrowRight,
   ArrowLeft
 } from 'lucide-react';
+import { coursesApi, type Course } from '@/lib/api';
 
 const StartInterview: React.FC = () => {
+  const location = useLocation();
   const [selectedType, setSelectedType] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [course, setCourse] = useState<Course | null>(null);
+
   const [currentStep, setCurrentStep] = useState<'select' | 'setup' | 'interview'>('select');
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<string[]>([]);
@@ -120,8 +125,33 @@ const StartInterview: React.FC = () => {
     ]
   };
 
+  useEffect(() => {
+    const initFromState = async () => {
+      if (location.state?.courseId && location.state?.interviewType) {
+        const typeId = location.state.interviewType;
+        // Verify type exists
+        if (interviewTypes.find(t => t.id === typeId)) {
+          setSelectedType(typeId);
+
+          try {
+            const courseData = await coursesApi.getCourseById(location.state.courseId);
+            setCourse(courseData);
+            // Bypass category selection by setting a flag or just relying on `course` state
+            // We set currentStep directly to 'setup'
+            setCurrentStep('setup');
+          } catch (error) {
+            console.error("Failed to fetch course details:", error);
+            // Fallback?
+          }
+        }
+      }
+    };
+
+    initFromState();
+  }, [location.state]);
+
   const handleStartInterview = () => {
-    if (selectedType && selectedCategory) {
+    if (selectedType && (selectedCategory || course)) {
       setCurrentStep('setup');
     }
   };
@@ -140,8 +170,9 @@ const StartInterview: React.FC = () => {
       setAnswers([...answers, textAnswer]);
       setTextAnswer('');
     }
-    
-    if (currentQuestion < mockQuestions[selectedType as keyof typeof mockQuestions].length - 1) {
+
+    const questions = mockQuestions[selectedType as keyof typeof mockQuestions] || [];
+    if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(currentQuestion + 1);
     } else {
       // Interview completed
@@ -202,18 +233,30 @@ const StartInterview: React.FC = () => {
             <CardTitle>Interview Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {course ? (
+              <div>
+                <Label className="text-sm font-medium text-gray-700">Course</Label>
+                <p className="text-sm text-gray-900 font-semibold">
+                  {course.title}
+                </p>
+                <p className="text-xs text-gray-500">{course.description}</p>
+              </div>
+            ) : (
+              <div>
+                <Label className="text-sm font-medium text-gray-700">Category</Label>
+                <p className="text-sm text-gray-600">
+                  {categories.find(c => c.id === selectedCategory)?.name}
+                </p>
+              </div>
+            )}
+
             <div>
               <Label className="text-sm font-medium text-gray-700">Type</Label>
               <p className="text-sm text-gray-600">
                 {interviewTypes.find(t => t.id === selectedType)?.name}
               </p>
             </div>
-            <div>
-              <Label className="text-sm font-medium text-gray-700">Category</Label>
-              <p className="text-sm text-gray-600">
-                {categories.find(c => c.id === selectedCategory)?.name}
-              </p>
-            </div>
+
             <div>
               <Label className="text-sm font-medium text-gray-700">Duration</Label>
               <p className="text-sm text-gray-600">
@@ -223,7 +266,7 @@ const StartInterview: React.FC = () => {
             <div>
               <Label className="text-sm font-medium text-gray-700">Questions</Label>
               <p className="text-sm text-gray-600">
-                {mockQuestions[selectedType as keyof typeof mockQuestions]?.length} questions
+                {mockQuestions[selectedType as keyof typeof mockQuestions]?.length || 0} questions
               </p>
             </div>
           </CardContent>
@@ -244,8 +287,10 @@ const StartInterview: React.FC = () => {
   );
 
   const renderInterviewQuestion = () => {
-    const questions = mockQuestions[selectedType as keyof typeof mockQuestions];
-    const question = questions[currentQuestion];
+    const questions = mockQuestions[selectedType as keyof typeof mockQuestions] || [];
+    const question = questions[currentQuestion] as any;
+
+    if (!question) return <div>No questions available.</div>;
 
     return (
       <div className="max-w-4xl mx-auto space-y-6">
@@ -255,7 +300,7 @@ const StartInterview: React.FC = () => {
               Question {currentQuestion + 1} of {questions.length}
             </h2>
             <p className="text-gray-600">
-              {categories.find(c => c.id === selectedCategory)?.name}
+              {course ? course.title : categories.find(c => c.id === selectedCategory)?.name}
             </p>
           </div>
           <div className="flex items-center text-gray-600">
@@ -315,7 +360,7 @@ const StartInterview: React.FC = () => {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="space-y-2">
                   <p className="text-sm text-gray-600">
                     Recommended duration: {question.duration}
@@ -331,16 +376,16 @@ const StartInterview: React.FC = () => {
         </Card>
 
         <div className="flex justify-between">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             disabled={currentQuestion === 0}
             onClick={() => setCurrentQuestion(currentQuestion - 1)}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Previous
           </Button>
-          
-          <Button 
+
+          <Button
             onClick={handleNextQuestion}
             disabled={
               (selectedType === 'mcq' && !selectedAnswer) ||
@@ -383,7 +428,7 @@ const StartInterview: React.FC = () => {
             Start Your Interview Practice
           </h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Choose your interview format and category to begin practicing. 
+            Choose your interview format and category to begin practicing.
             Each format offers unique benefits to help you prepare effectively.
           </p>
         </div>
@@ -393,11 +438,10 @@ const StartInterview: React.FC = () => {
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Interview Type</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
             {interviewTypes.map((type) => (
-              <Card 
+              <Card
                 key={type.id}
-                className={`cursor-pointer transition-all ${type.color} ${
-                  selectedType === type.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''
-                }`}
+                className={`cursor-pointer transition-all ${type.color} ${selectedType === type.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+                  }`}
                 onClick={() => setSelectedType(type.id)}
               >
                 <CardContent className="p-6 text-center">
@@ -421,17 +465,16 @@ const StartInterview: React.FC = () => {
           </div>
         </div>
 
-        {/* Category Selection */}
-        {selectedType && (
+        {/* Category Selection - Only show if NO course is pre-selected */}
+        {!course && selectedType && (
           <div className="mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Interview Category</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
               {categories.map((category) => (
-                <Card 
+                <Card
                   key={category.id}
-                  className={`cursor-pointer transition-all border-gray-200 hover:border-blue-400 ${
-                    selectedCategory === category.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''
-                  }`}
+                  className={`cursor-pointer transition-all border-gray-200 hover:border-blue-400 ${selectedCategory === category.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+                    }`}
                   onClick={() => setSelectedCategory(category.id)}
                 >
                   <CardContent className="p-4">
@@ -451,7 +494,7 @@ const StartInterview: React.FC = () => {
         )}
 
         {/* Start Button */}
-        {selectedType && selectedCategory && (
+        {selectedType && (selectedCategory || course) && (
           <div className="text-center">
             <Button onClick={handleStartInterview} size="lg">
               <Play className="w-4 h-4 mr-2" />
