@@ -44,30 +44,57 @@ const History: React.FC = () => {
           const api = await import('../lib/api');
           const progressData = await api.coursesApi.getUserProgress(user.id);
 
-          // Filter for completed courses and map to history format
+          // Filter for completed courses and flatten history
           const formattedHistory = progressData
             .filter((p: any) => {
-              if (p.progress !== 100) return false;
               if (location.state?.courseId) {
                 const pCourseId = p.courseId?._id || p.courseId;
                 return String(pCourseId) === String(location.state.courseId);
               }
-              return true;
+              // Include if it has progress=100 OR if it has history entries
+              return p.progress === 100 || (p.history && p.history.length > 0);
             })
-            .map((p: any, index: number) => ({
-              id: p._id || index,
-              title: p.courseId?.title || 'Unknown Course',
-              type: 'Course',
-              category: p.courseId?.level || 'General', // Using level as category proxy
-              date: p.completedAt ? new Date(p.completedAt).toLocaleDateString() : new Date().toLocaleDateString(),
-              duration: formatTime(p.timeSpentSeconds || 0),
-              rawDuration: p.timeSpentSeconds || 0,
-              score: p.score || 0,
-              totalQuestions: p.metadata?.answers?.length || 0,
-              correctAnswers: p.metadata?.answers?.filter((a: any) => a.score >= 50).length || 0,
-              status: 'completed',
-              feedback: 'Course completed successfully.'
-            }));
+            .flatMap((p: any) => {
+              const baseInfo = {
+                title: p.courseId?.title || 'Unknown Course',
+                type: 'Course',
+                category: p.courseId?.level || 'General',
+              };
+
+              // If history array exists, use it for individual attempt rows
+              if (p.history && p.history.length > 0) {
+                return p.history.map((h: any, idx: number) => ({
+                  id: `${p._id}-${idx}`,
+                  ...baseInfo,
+                  date: h.date ? new Date(h.date).toLocaleDateString() : new Date().toLocaleDateString(),
+                  duration: formatTime(h.timeSpent || 0),
+                  rawDuration: h.timeSpent || 0,
+                  score: h.score || 0,
+                  totalQuestions: h.answers?.length || 0,
+                  correctAnswers: h.answers?.filter((a: any) => a.score >= 50).length || 0,
+                  status: 'completed',
+                  feedback: 'Interview completed.'
+                }));
+              }
+
+              // Legacy fallback for records without history array
+              if (p.progress === 100) {
+                return [{
+                  id: p._id,
+                  ...baseInfo,
+                  date: p.completedAt ? new Date(p.completedAt).toLocaleDateString() : new Date().toLocaleDateString(),
+                  duration: formatTime(p.timeSpentSeconds || 0),
+                  rawDuration: p.timeSpentSeconds || 0,
+                  score: p.score || 0,
+                  totalQuestions: p.metadata?.answers?.length || 0,
+                  correctAnswers: p.metadata?.answers?.filter((a: any) => a.score >= 50).length || 0,
+                  status: 'completed',
+                  feedback: 'Course completed successfully.'
+                }];
+              }
+
+              return [];
+            });
 
           setHistoryData(formattedHistory);
         } catch (error) {

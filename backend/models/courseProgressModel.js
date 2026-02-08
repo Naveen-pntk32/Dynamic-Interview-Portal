@@ -11,7 +11,13 @@ const courseProgressSchema = new mongoose.Schema(
     startedAt: { type: Date, default: null },
     lastAccessedAt: { type: Date, default: null },
     completedAt: { type: Date, default: null },
-    metadata: { type: Object, default: {} } // flexible field for extra data (answers, device info, etc.)
+    metadata: { type: Object, default: {} }, // flexible field for extra data (answers, device info, etc.)
+    history: [{
+      date: Date,
+      score: Number,
+      timeSpent: Number,
+      answers: [Object]
+    }]
   },
   { timestamps: true }
 );

@@ -185,6 +185,17 @@ exports.updateCourseProgress = async (req, res) => {
         if (progress !== undefined) courseProgress.progress = progress;
         if (score !== undefined) courseProgress.score = score;
         if (timeSpentSeconds !== undefined) courseProgress.timeSpentSeconds = (courseProgress.timeSpentSeconds || 0) + timeSpentSeconds;
+
+        // Push to history if we have results
+        if (answers && score !== undefined) {
+            courseProgress.history.push({
+                date: new Date(),
+                score: score,
+                timeSpent: timeSpentSeconds || 0, // Session duration
+                answers: answers
+            });
+        }
+
         if (answers) courseProgress.metadata = { ...courseProgress.metadata, answers };
 
         courseProgress.lastAccessedAt = new Date();
