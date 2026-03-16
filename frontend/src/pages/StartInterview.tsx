@@ -217,6 +217,30 @@ const StartInterview: React.FC = () => {
     };
   }, [currentStep, selectedType]);
 
+  // Clean up media on unmount as well
+  useEffect(() => {
+    return () => {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [mediaStream]);
+
+  // Attach stream to video element when ready
+  useEffect(() => {
+    if (videoRef.current && mediaStream) {
+      videoRef.current.srcObject = mediaStream;
+    }
+  }, [mediaStream, currentStep]);
+
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [recognitionError, setRecognitionError] = useState<string>('');
+  const isRecordingRef = useRef(false);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
   // Speech Recognition Setup
   useEffect(() => {
     if (SpeechRecognition && (selectedType === 'voice' || selectedType === 'video')) {
@@ -226,11 +250,40 @@ const StartInterview: React.FC = () => {
       recognition.lang = 'en-US';
 
       recognition.onresult = (event: any) => {
-        let transcript = '';
+        let finalTrans = '';
+        let interimTrans = '';
+
         for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTrans += transcript + ' ';
+          } else {
+            interimTrans += transcript;
+          }
         }
-        setTextAnswer(prev => prev + ' ' + transcript);
+
+        if (finalTrans) {
+          setTextAnswer(prev => {
+            const newText = prev + finalTrans;
+            return newText.replace(/\s+/g, ' '); // Clean up double spaces
+          });
+        }
+        setInterimTranscript(interimTrans);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        setRecognitionError(event.error);
+        if (event.error === 'not-allowed') {
+          toast.error("Microphone access denied. Please check permissions.");
+          setIsRecording(false);
+        }
+      };
+
+      recognition.onend = () => {
+        if (isRecordingRef.current) {
+          setIsRecording(false);
+        }
       };
 
       recognitionRef.current = recognition;
@@ -242,13 +295,30 @@ const StartInterview: React.FC = () => {
     };
   }, [selectedType]);
 
+  // Effect to handle start/stop based on isRecording state change
+  // We need to decouple initialization from start/stop.
+  // The previous implementation had start/stop inside toggleRecording which is fine, but onend might desync.
+  // Let's modify toggleRecording to be safer.
+
   const toggleRecording = () => {
-    if (isRecording) {
-      recognitionRef.current?.stop();
-    } else {
-      recognitionRef.current?.start();
+    if (!recognitionRef.current) {
+      toast.error("Speech recognition not supported in this browser.");
+      return;
     }
-    setIsRecording(!isRecording);
+
+    if (isRecording) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+      setInterimTranscript('');
+    } else {
+      setRecognitionError('');
+      try {
+        recognitionRef.current.start();
+        setIsRecording(true);
+      } catch (e) {
+        console.error("Failed to start recording:", e);
+      }
+    }
   };
 
   const handleStartInterview = async () => {
@@ -342,7 +412,7 @@ const StartInterview: React.FC = () => {
           answers: allAnswers
         });
         toast.success("Interview completed and saved!");
-        navigate('/history');
+        navigate('/history', { state: { courseId: course._id } });
       } catch (err) {
         console.error("Failed to save progress:", err);
         toast.error("Failed to save results");
@@ -465,14 +535,22 @@ const StartInterview: React.FC = () => {
                 </RadioGroup>
               )}
 
-              {(selectedType === 'text' || selectedType === 'voice') && (
+              {(selectedType === 'text' || selectedType === 'voice' || selectedType === 'video') && (
                 <div className="space-y-4 flex-1 flex flex-col">
                   <Textarea
-                    placeholder={question.placeholder || "Type your answer here..."}
+                    placeholder={question.placeholder || "Your answer will appear here as you speak..."}
                     value={textAnswer}
                     onChange={e => setTextAnswer(e.target.value)}
                     className="flex-1 min-h-[200px] resize-none"
                   />
+                  {isRecording && interimTranscript && (
+                    <div className="p-3 bg-blue-50 text-blue-800 rounded-md text-sm italic animate-pulse">
+                      Listening: {interimTranscript}
+                    </div>
+                  )}
+                  {recognitionError && (
+                    <div className="text-red-500 text-sm">Error: {recognitionError}</div>
+                  )}
                   {selectedType === 'voice' && (
                     <Button
                       variant={isRecording ? "destructive" : "default"}
